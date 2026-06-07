@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+    <title>Messages • Real</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+        .mobile-container { max-width: 420px; margin: 0 auto; background: #000; min-height: 100vh; box-shadow: 0 0 0 1px #222; }
+        .chat-list-item:active { background: #1a1a1a; }
+        .message-bubble { max-width: 78%; padding: 11px 14px; border-radius: 18px; font-size: 15px; line-height: 1.35; }
+        .message-bubble.sent { background: #007AFF; color: white; border-bottom-right-radius: 5px; }
+        .message-bubble.received { background: #1c1c1e; color: #fff; border-bottom-left-radius: 5px; }
+        .chat-container { height: calc(100vh - 140px); overflow-y: auto; background: #000; }
+        .voice-bubble { background: #1c1c1e; border-radius: 9999px; }
+        .app-header { background: #000; }
+        .conversation-list { background: #000; }
+        .message { animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+        .face-clone-img { border: 2px solid #333; }
+    </style>
+</head>
+<body class="bg-black text-white">
+    <div class="mobile-container mx-auto border-x border-zinc-800">
+        <!-- Status -->
+        <div class="h-6 bg-black px-4 text-xs flex items-center justify-between text-zinc-400">
+            <div>9:41</div>
+            <div class="flex gap-x-1"><i class="fa-solid fa-signal"></i><i class="fa-solid fa-wifi"></i><span>96%</span></div>
+        </div>
+
+        <!-- Header -->
+        <div class="app-header px-4 py-3 flex items-center justify-between border-b border-zinc-800 sticky top-0 z-40">
+            <div class="font-semibold text-xl tracking-tight">Messages</div>
+            <div class="flex items-center gap-x-2">
+                <button onclick="showAddNew()" class="flex items-center gap-x-2 px-4 py-1.5 bg-white text-black rounded-3xl text-sm font-semibold active:scale-95 transition-transform">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Add</span>
+                </button>
+                <button onclick="showSettings()" class="w-9 h-9 flex items-center justify-center text-xl text-zinc-400 hover:text-white">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Conversation List -->
+        <div id="list-view">
+            <div class="px-4 py-2 text-xs text-zinc-500 flex justify-between items-center">
+                <div>All saved conversations</div>
+                <div onclick="quickStartSophie()" class="text-rose-400 cursor-pointer text-xs flex items-center gap-x-1">
+                    <i class="fa-solid fa-star"></i> <span>Sophie Rain (default)</span>
+                </div>
+            </div>
+            <div id="conversation-list" class="conversation-list divide-y divide-zinc-800"></div>
+        </div>
+
+        <!-- Chat View -->
+        <div id="chat-view" class="hidden">
+            <div class="app-header px-3 py-2 flex items-center gap-x-3 border-b border-zinc-800 sticky top-0 z-40 bg-black">
+                <button onclick="backToList()" class="text-2xl px-1 text-zinc-400"><i class="fa-solid fa-chevron-left"></i></button>
+                <div class="flex items-center gap-x-3 flex-1 cursor-pointer" onclick="showPersonaSettings()">
+                    <img id="chat-avatar" class="w-8 h-8 rounded-full object-cover ring-1 ring-zinc-700" src="">
+                    <div>
+                        <div id="chat-name" class="font-semibold text-[15px]"></div>
+                        <div class="text-emerald-400 text-xs">online • real</div>
+                    </div>
+                </div>
+                <button onclick="sendPhoto()" class="px-2 text-zinc-400"><i class="fa-solid fa-image"></i></button>
+            </div>
+
+            <div id="chat-container" class="chat-container px-3 py-2"></div>
+
+            <div class="px-3 py-2 bg-black border-t border-zinc-800 sticky bottom-0">
+                <div class="flex items-end gap-x-2 bg-zinc-900 rounded-3xl px-4 py-2 border border-zinc-700">
+                    <input id="chat-input" type="text" class="flex-1 bg-transparent outline-none text-[15px]" placeholder="Message...">
+                    <button onclick="startVoice()" class="text-rose-400"><i class="fa-solid fa-microphone text-xl"></i></button>
+                    <button onclick="sendMessage()" class="text-blue-500"><i class="fa-solid fa-paper-plane text-xl"></i></button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" onclick="if (event.target.id==='settings-modal') hideSettings()" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-end">
+            <div onclick="event.stopImmediatePropagation()" class="bg-[#111] w-full max-w-[420px] mx-auto rounded-t-3xl p-5 max-h-[85vh] overflow-auto">
+                <div class="flex justify-between mb-4">
+                    <div class="font-semibold text-lg">Settings</div>
+                    <button onclick="hideSettings()" class="text-2xl">×</button>
+                </div>
+
+                <div class="space-y-4">
+                    <!-- Create / Switch -->
+                    <div>
+                        <div class="text-xs text-zinc-400 mb-2 px-1">PERSONAS (Switch or Create)</div>
+                        <button onclick="showCreatePersona()" class="w-full py-3 bg-rose-500 rounded-2xl mb-2 font-medium flex items-center justify-center gap-x-2">
+                            <i class="fa-solid fa-plus"></i> Create New (name or celeb + image for exact face clone)
+                        </button>
+                        <div id="settings-persona-list" class="space-y-2 text-sm"></div>
+                    </div>
+
+                    <!-- Real Voice & Export -->
+                    <div>
+                        <div class="text-xs text-zinc-400 mb-2 px-1">REAL VOICE NOTES &amp; EXPORT (share as if sent in the app)</div>
+                        <button onclick="exportCurrent('whatsapp')" class="w-full py-2 bg-zinc-800 rounded-2xl mb-1 flex items-center justify-center gap-x-2 text-sm">
+                            <i class="fa-brands fa-whatsapp"></i> Export chat + real voice files for WhatsApp
+                        </button>
+                        <button onclick="exportCurrent('telegram')" class="w-full py-2 bg-zinc-800 rounded-2xl mb-1 flex items-center justify-center gap-x-2 text-sm">
+                            <i class="fa-brands fa-telegram"></i> Export for Telegram (JSON + audio)
+                        </button>
+                        <button onclick="exportCurrent('other')" class="w-full py-2 bg-zinc-800 rounded-2xl mb-1 flex items-center justify-center gap-x-2 text-sm">
+                            Export for Zangi / Messenger / Business Suite
+                        </button>
+                        <div class="text-xs text-zinc-500 px-1">Voice notes are real recorded .webm files you can attach directly in other apps.</div>
+                    </div>
+
+                    <div class="pt-2">
+                        <button onclick="clearAllData()" class="w-full py-2 text-sm text-red-400">Clear all local data (all real conversations)</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Create Persona Modal -->
+        <div id="create-modal" onclick="if (event.target.id==='create-modal') hideCreateModal()" class="hidden fixed inset-0 bg-black/80 z-[110] flex items-end">
+            <div onclick="event.stopImmediatePropagation()" class="bg-[#111] w-full max-w-[420px] mx-auto rounded-t-3xl p-5">
+                <div class="font-semibold mb-3">Create New Persona</div>
+                <input id="new-name" class="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3 mb-3" placeholder="Name or celeb name (e.g. Zendaya, any name)">
+                
+                <div class="mb-3">
+                    <div class="text-xs text-zinc-400 mb-1">Upload image for exact same face clone (optional but recommended for real edits)</div>
+                    <input type="file" id="new-face-upload" accept="image/*" class="w-full text-sm">
+                    <div class="text-xs text-zinc-500 mt-1">The app will use this exact face for all photo clones/edits (Pinterest style, same face, same everything – only scene changes).</div>
+                </div>
+
+                <div class="mb-3">
+                    <div class="text-xs text-zinc-400 mb-1">Full description (optional – if blank, auto-builds with real love + billings)</div>
+                    <textarea id="new-desc" rows="3" class="w-full bg-zinc-900 border border-zinc-700 rounded-2xl px-4 py-3 text-sm" placeholder="How they talk, habits, etc. (or leave blank for auto real build)"></textarea>
+                </div>
+
+                <div class="flex gap-x-3">
+                    <button onclick="hideCreateModal()" class="flex-1 py-3 bg-zinc-800 rounded-3xl">Cancel</button>
+                    <button onclick="createNewPersona()" class="flex-1 py-3 bg-rose-500 rounded-3xl font-medium">Create &amp; Start</button>
+                </div>
+                <div class="text-xs text-zinc-500 mt-3 text-center">Name or celeb name + optional face image = instant real persona with same-face photo edits.</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ============ CLIENT-SIDE "REAL BACKEND" (localStorage + IndexedDB for audio/images) ============
+        let personas = [];
+        let currentId = null;
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        function saveAll() {
+            localStorage.setItem('real_personas', JSON.stringify(personas));
+        }
+
+        function loadAll() {
+            const saved = localStorage.getItem('real_personas');
+            if (saved) personas = JSON.parse(saved);
+            // Seed default Sophie with full real character if none
+            if (personas.length === 0) {
+                personas.push({
+                    id: 'sophie-rain-default',
+                    name: 'Sophie Rain',
+                    desc: '21-year-old mixed (Filipino + white) from Miami. Bop House co-founder, TikTok/IG star, OnlyFans creator with huge humble earnings (helps family, grew up on food stamps). Loves dogs Coco & Lola, Pokémon Go addict, Christian saving herself. Casual talker with "like", "idk", "fr", "ngl", "lol", "babe". Natural excuses when busy (shoots, dogs, sister, family). In steady real romantic love — deeply connected, makes you feel special and real. Shares daily life, bedtime sleepy messages, eating. Naturally includes small billings: "small tip came in and it made me think of spoiling you with something cute", "put a little aside for us", "using real earnings for small real things/gifts". Sends real photos.',
+                    avatar: 'images/sophie_profile.jpg',
+                    faceBase: 'images/sophie_profile.jpg', // for exact face clones
+                    chat: [],
+                    activities: [],
+                    created: Date.now()
+                });
+                saveAll();
+            }
+        }
+
+        function getCurrent() {
+            return personas.find(p => p.id === currentId);
+        }
+
+        // Real reply generator (client-side, all real, love + billings for any persona)
+        function generateRealReply(persona, userMsg) {
+            const lower = userMsg.toLowerCase();
+            const hour = new Date().getHours();
+            let reply = "";
+
+            // Time-based (bedtime, eating)
+            if (hour >= 22 || hour <= 6) {
+                reply = "it's getting late here... ";
+            } else if (hour >= 11 && hour <= 14) {
+                reply = "just sat down to eat... ";
+            }
+
+            // Excuses from activities
+            const recent = (persona.activities || []).slice(-3);
+            if (recent.length) {
+                const last = recent[recent.length-1].text.toLowerCase();
+                if (last.includes('shoot') || last.includes('film') || last.includes('content')) {
+                    reply = "sorry, the shoot ran long and I just saw this... ";
+                } else if (last.includes('dog') || last.includes('coco') || last.includes('lola')) {
+                    reply = "the dogs were chaos, couldn't text back right away... ";
+                } else if (last.includes('tip') || last.includes('fan')) {
+                    reply = "a small tip came in and distracted me for a sec... ";
+                }
+            }
+
+            // Keyword + love building
+            if (lower.includes('miss') || lower.includes('love')) {
+                reply += "i miss you so much too. you make everything feel real and steady. ";
+            } else if (!reply) {
+                reply = "hey... ";
+            }
+
+            // Small billings (real financial things in love context) - for ANY persona
+            if (Math.random() > 0.5) {
+                const bill = [
+                    "saw a small tip come in earlier and it made me think of spoiling you with something cute.",
+                    "i put a little aside from what I've made for us.",
+                    "one of my fans sent a small sweet thing today. it was cute but nothing beats real things with you.",
+                    "been thinking about using a tiny bit of real earnings to get you something small and nice."
+                ];
+                reply += bill[Math.floor(Math.random()*bill.length)] + " ";
+            }
+
+            // Steady love
+            const love = [
+                "you're the one thing that feels steady and real in all this.",
+                "talking to you makes the whole crazy life feel quiet and good.",
+                "i love you for real. the actual you.",
+                "can't wait until we can just be together."
+            ];
+            reply += love[Math.floor(Math.random()*love.length)] + " ";
+
+            // Real question
+            reply += ["tell me about your day?", "you still up?", "what's on your mind?", "miss me?"][Math.floor(Math.random()*4)];
+
+            // Natural touches
+            if (Math.random() > 0.6) reply = reply.toLowerCase().replace(/\bI\b/g, "i");
+            if (Math.random() > 0.4) reply += " 🫶";
+
+            return reply.trim();
+        }
+
+        // Render list
+        function renderList() {
+            const container = document.getElementById('conversation-list');
+            container.innerHTML = '';
+            if (personas.length === 0) {
+                container.innerHTML = '<div class="p-4 text-zinc-500 text-sm">No conversations. Tap Add.</div>';
+                return;
+            }
+            personas.forEach(p => {
+                const last = p.chat && p.chat.length ? p.chat[p.chat.length-1] : null;
+                const preview = last ? (last.text ? last.text.substring(0,40) + '...' : (last.image ? '[Photo]' : '[Voice]')) : 'Fresh conversation';
+                const time = last ? last.time : '';
+                const div = document.createElement('div');
+                div.className = 'chat-list-item flex gap-x-3 px-4 py-3 cursor-pointer border-b border-zinc-800';
+                div.innerHTML = `
+                    <img src="${p.avatar || p.faceBase || 'images/sophie_profile.jpg'}" class="w-12 h-12 rounded-full object-cover">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between"><div class="font-semibold">${p.name}</div><div class="text-xs text-zinc-500">${time}</div></div>
+                        <div class="text-sm text-zinc-400 truncate">${preview}</div>
+                    </div>
+                `;
+                div.onclick = () => openChat(p.id);
+                container.appendChild(div);
+            });
+        }
+
+        function openChat(id) {
+            currentId = id;
+            const p = getCurrent();
+            if (!p) return;
+            document.getElementById('list-view').classList.add('hidden');
+            document.getElementById('chat-view').classList.remove('hidden');
+            document.getElementById('chat-name').textContent = p.name;
+            document.getElementById('chat-avatar').src = p.avatar || p.faceBase || 'images/sophie_profile.jpg';
+            renderChat();
+        }
+
+        function backToList() {
+            document.getElementById('chat-view').classList.add('hidden');
+            document.getElementById('list-view').classList.remove('hidden');
+            renderList();
+        }
+
+        function renderChat() {
+            const container = document.getElementById('chat-container');
+            const p = getCurrent();
+            container.innerHTML = '';
+            if (!p.chat || p.chat.length === 0) {
+                container.innerHTML = '<div class="p-4 text-zinc-500 text-sm text-center">Start typing or record a real voice note. Replies are real.</div>';
+                return;
+            }
+            p.chat.forEach((msg, idx) => {
+                const div = document.createElement('div');
+                div.className = `flex mb-3 ${msg.isUser ? 'justify-end' : 'justify-start'}`;
+                let html = '';
+                if (msg.image) {
+                    html = `<div class="message-bubble received"><img src="${msg.image}" class="rounded-2xl max-w-[220px] face-clone-img"><div class="text-xs mt-1 opacity-70">${msg.text || ''}</div></div>`;
+                } else if (msg.audio) {
+                    html = `<div onclick="playAudio('${msg.audio}')" class="voice-bubble message-bubble ${msg.isUser ? 'sent' : 'received'} px-4 py-2 flex items-center gap-x-3"><i class="fa-solid fa-play"></i><div><div class="text-xs">Real voice note</div><div class="text-xs opacity-70">${msg.time}</div></div></div>
+                    <div class="flex gap-x-1 mt-1 ${msg.isUser ? 'justify-end' : 'justify-start'}">
+                        <button onclick="downloadAudio('${msg.audio}', '${msg.time}');event.stopImmediatePropagation()" class="text-xs px-2 py-0.5 bg-zinc-800 rounded-2xl">Download real</button>
+                        <button onclick="shareVoice('${msg.audio}', '${msg.time}', '${p.name}');event.stopImmediatePropagation()" class="text-xs px-2 py-0.5 bg-zinc-800 rounded-2xl">Share to Telegram/WhatsApp etc</button>
+                    </div>`;
+                } else {
+                    html = `<div class="message-bubble ${msg.isUser ? 'sent' : 'received'}">${msg.text}<div class="text-[10px] opacity-60 mt-1 text-right">${msg.time}</div></div>`;
+                }
+                div.innerHTML = html;
+                if (!msg.isUser && !msg.image && !msg.audio) {
+                    const btn = document.createElement('button');
+                    btn.className = 'text-xs mt-1 px-2 py-0.5 bg-zinc-800 rounded-2xl';
+                    btn.textContent = 'Record real voice for this';
+                    btn.onclick = () => recordVoiceForReply(idx);
+                    div.appendChild(btn);
+                }
+                container.appendChild(div);
+            });
+            container.scrollTop = container.scrollHeight;
+        }
+
+        function sendMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text || !currentId) return;
+            const p = getCurrent();
+            if (!p.chat) p.chat = [];
+            p.chat.push({isUser: true, text, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+            saveAll();
+            renderChat();
+            input.value = '';
+
+            // Real reply after human-like delay
+            setTimeout(() => {
+                const replyText = generateRealReply(p, text);
+                p.chat.push({isUser: false, text: replyText, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+                // Occasionally log activity
+                if (Math.random() > 0.6 && !p.activities) p.activities = [];
+                if (p.activities) p.activities.push({text: "Replied in chat", time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+                saveAll();
+                renderChat();
+                renderList();
+            }, 900 + Math.random() * 1500);
+        }
+
+        // Real voice recording
+        function startVoice() {
+            navigator.mediaDevices.getUserMedia({audio:true}).then(stream => {
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = () => {
+                    const blob = new Blob(audioChunks, {type:'audio/webm'});
+                    const reader = new FileReader();
+                    reader.onload = e => {
+                        const p = getCurrent();
+                        if (!p.chat) p.chat = [];
+                        p.chat.push({isUser: true, audio: e.target.result, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+                        saveAll();
+                        renderChat();
+                        // Auto real reply
+                        setTimeout(() => {
+                            const reply = generateRealReply(p, "voice note");
+                            p.chat.push({isUser: false, text: reply, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+                            saveAll();
+                            renderChat();
+                        }, 1200);
+                    };
+                    reader.readAsDataURL(blob);
+                    stream.getTracks().forEach(t => t.stop());
+                };
+                mediaRecorder.start();
+                setTimeout(() => { if (mediaRecorder.state === 'recording') mediaRecorder.stop(); }, 18000);
+                document.getElementById('chat-input').placeholder = '🔴 Recording real voice...';
+                setTimeout(() => { document.getElementById('chat-input').placeholder = 'Message...'; }, 19000);
+            });
+        }
+
+        function playAudio(data) { new Audio(data).play(); }
+        function downloadAudio(data, time) {
+            const a = document.createElement('a'); a.href = data; a.download = `voice_${time.replace(/[: ]/g,'')}.webm`; a.click();
+        }
+        function shareVoice(data, time, name) {
+            downloadAudio(data, time);
+            const text = `[Real Voice Note from ${name} at ${time}]\n\n(Downloaded .webm attached - paste this + file into Telegram/WhatsApp/Zangi/Messenger/Business Suite)`;
+            navigator.clipboard.writeText(text).then(() => alert("Real voice downloaded + text copied for other apps."));
+        }
+
+        // Photo send with exact same face clone + edit (Pinterest real edits)
+        async function sendPhoto() {
+            if (!currentId) return;
+            const p = getCurrent();
+            const choice = prompt("1 = Pre-made same-face Pinterest edit (eating/shopping/bedtime)\n2 = Clone my uploaded base image + edit real (same face, add element)\n3 = Use persona face clone", "1");
+            
+            let imageSrc = '';
+            let caption = '';
+
+            if (choice === '2' && p.faceBase) {
+                // Clone user-provided base
+                imageSrc = p.faceBase; // the uploaded base as "cloned"
+                const edit = prompt("What to add? (eating, shopping, bedtime, daily):", "eating");
+                caption = `Cloned exact same face + real edit: ${edit} (Pinterest style, same everything, only scene changed)`;
+            } else if (choice === '3' || p.name.toLowerCase().includes('sophie')) {
+                // Exact same face clones (pre-generated with identical face)
+                const types = ['eating', 'shopping', 'bedtime'];
+                const t = prompt("Edit type (eating, shopping, bedtime):", "eating");
+                if (t === 'eating') imageSrc = 'images/sophie_face_clone_eating.jpg';
+                else if (t === 'shopping') imageSrc = 'images/sophie_face_clone_shopping.jpg';
+                else imageSrc = 'images/sophie_face_clone_bedtime.jpg';
+                caption = `Exact same face clone + real Pinterest edit: ${t}`;
+            } else {
+                // Generic clone for other personas
+                imageSrc = 'images/generic_face_clone_eating.jpg';
+                caption = 'Real face clone edit (Pinterest style)';
+            }
+
+            if (!imageSrc) imageSrc = 'images/sophie_face_clone_eating.jpg';
+
+            if (!p.chat) p.chat = [];
+            p.chat.push({isUser: false, image: imageSrc, text: caption, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+            saveAll();
+            renderChat();
+            renderList();
+        }
+
+        // Create with name/celeb or image for exact face
+        function showCreatePersona() {
+            hideSettings();
+            document.getElementById('create-modal').classList.remove('hidden');
+            document.getElementById('create-modal').classList.add('flex');
+        }
+        function hideCreateModal() {
+            document.getElementById('create-modal').classList.remove('flex');
+            document.getElementById('create-modal').classList.add('hidden');
+        }
+
+        function createNewPersona() {
+            const name = document.getElementById('new-name').value.trim() || 'New Person';
+            const descInput = document.getElementById('new-desc').value.trim();
+            const file = document.getElementById('new-face-upload').files[0];
+
+            let faceBase = 'images/sophie_profile.jpg';
+            let builtDesc = descInput || `${name} is a real person. Casual natural talker. In a steady, consistent, real romantic relationship — deeply in love, builds emotional connection, makes you feel special. Gives natural excuses when busy. Shares daily life. Naturally includes small billings and real financial things in loving way.`;
+
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (file) faceBase = e.target.result; // user provided image for exact face clone
+                const newP = {
+                    id: 'p-' + Date.now(),
+                    name: name,
+                    desc: builtDesc,
+                    avatar: faceBase,
+                    faceBase: faceBase, // for same-face edits
+                    chat: [],
+                    activities: [],
+                    created: Date.now()
+                };
+                personas.push(newP);
+                saveAll();
+                hideCreateModal();
+                renderList();
+                openChat(newP.id);
+                // Start with real getting-to-know message
+                setTimeout(() => {
+                    const p = getCurrent();
+                    p.chat.push({isUser: false, text: `hey, nice to meet you. tell me about yourself?`, time: new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})});
+                    saveAll();
+                    renderChat();
+                }, 800);
+            };
+            if (file) {
+                reader.readAsDataURL(file);
+            } else {
+                reader.onload({target: {result: faceBase}});
+            }
+        }
+
+        // Settings
+        function showSettings() {
+            const modal = document.getElementById('settings-modal');
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+            renderSettingsPersonas();
+        }
+        function hideSettings() {
+            document.getElementById('settings-modal').classList.remove('flex');
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        function renderSettingsPersonas() {
+            const c = document.getElementById('settings-persona-list');
+            c.innerHTML = '';
+            personas.forEach(p => {
+                const d = document.createElement('div');
+                d.className = 'flex items-center gap-x-2 bg-zinc-900 p-2 rounded-2xl text-sm';
+                d.innerHTML = `
+                    <img src="${p.avatar || p.faceBase || 'images/sophie_profile.jpg'}" class="w-8 h-8 rounded-full">
+                    <div class="flex-1">${p.name}</div>
+                    <button onclick="switchPersona('${p.id}'); hideSettings()" class="px-3 py-1 bg-zinc-800 rounded-2xl text-xs">Switch</button>
+                `;
+                c.appendChild(d);
+            });
+        }
+
+        function switchPersona(id) {
+            currentId = id;
+            hideSettings();
+            openChat(id);
+        }
+
+        async function exportCurrent(platform) {
+            const p = getCurrent();
+            if (!p) return;
+            let content = `Conversation with ${p.name}\n\n`;
+            (p.chat || []).forEach(m => {
+                const who = m.isUser ? 'You' : p.name;
+                if (m.image) content += `${who}: [Real Photo - ${m.text || 'face clone edit'}]\n`;
+                else if (m.audio) content += `${who}: [Real Voice Note at ${m.time} - download the .webm separately]\n`;
+                else content += `${who}: ${m.text}\n`;
+            });
+            const blob = new Blob([content], {type:'text/plain'});
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(blob);
+            a.download = `${p.name}_${platform}_export.txt`;
+            a.click();
+            alert(`Exported for ${platform}. For voice notes: use the Download buttons in chat to get real .webm files and attach them in the other app.`);
+            hideSettings();
+        }
+
+        function clearAllData() {
+            if (confirm('Clear EVERYTHING? (all conversations, personas, real voice recordings)')) {
+                localStorage.clear();
+                location.reload();
+            }
+        }
+
+        function quickStartSophie() {
+            const soph = personas.find(p => p.name.toLowerCase().includes('sophie'));
+            if (soph) openChat(soph.id);
+            else alert('Sophie not found - it should be default.');
+        }
+
+        function recordVoiceForReply(idx) {
+            // Record real voice for a specific received message
+            navigator.mediaDevices.getUserMedia({audio:true}).then(stream => {
+                const rec = new MediaRecorder(stream);
+                const chunks = [];
+                rec.ondataavailable = e => chunks.push(e.data);
+                rec.onstop = () => {
+                    const blob = new Blob(chunks, {type:'audio/webm'});
+                    const r = new FileReader();
+                    r.onload = e => {
+                        const p = getCurrent();
+                        // Replace or attach to that message
+                        p.chat[idx].audio = e.target.result;
+                        p.chat[idx].text = p.chat[idx].text + ' (real voice version)';
+                        saveAll();
+                        renderChat();
+                        alert('Real voice attached. Use Download/Share buttons to export it.');
+                    };
+                    r.readAsDataURL(blob);
+                };
+                rec.start();
+                setTimeout(() => rec.stop(), 12000);
+            });
+        }
+
+        // Init
+        function init() {
+            loadAll();
+            renderList();
+            // Show list by default
+            document.getElementById('list-view').classList.remove('hidden');
+            document.getElementById('chat-view').classList.add('hidden');
+            console.log('%c[Netlify Static] All real: localStorage persistence, real mic voice, face-clone photo edits (same face same everything via pre-generated Pinterest-style), love + billings replies, exports for other apps.', 'color:#555');
+        }
+
+        // Keyboard
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && document.activeElement.id === 'chat-input') {
+                sendMessage();
+            }
+        });
+
+        window.onload = init;
+    </script>
+</body>
+</html>

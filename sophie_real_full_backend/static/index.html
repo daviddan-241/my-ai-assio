@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Messages</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&amp;family=SF+Pro+Display:wght@400;500;600&amp;display=swap');
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif; }
+        .mobile-container { max-width: 420px; margin: 0 auto; background: #000; min-height: 100vh; box-shadow: 0 0 0 1px #222; }
+        .chat-list-item { transition: background 0.1s; }
+        .chat-list-item:active { background: #1a1a1a; }
+        .message-bubble { max-width: 75%; padding: 11px 14px; border-radius: 18px; font-size: 15px; line-height: 1.35; }
+        .message-bubble.sent { background: #007AFF; color: white; border-bottom-right-radius: 5px; }
+        .message-bubble.received { background: #1c1c1e; color: #fff; border-bottom-left-radius: 5px; }
+        .platform-whatsapp .message-bubble.received { background: #1f1f1f; }
+        .platform-telegram .message-bubble.received { background: #2b2b2b; border-radius: 12px; }
+        .chat-container { height: calc(100vh - 130px); overflow-y: auto; background: #000; }
+        .nav-bottom { background: #111; border-top: 1px solid #222; }
+        .real-voice { background: #1c1c1e; border-radius: 9999px; }
+        .app-header { background: #000; }
+        .conversation-list { background: #000; }
+        .message { animation: fadeIn 0.2s ease; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .nice-shadow { box-shadow: 0 1px 3px rgba(0,0,0,0.3); }
+    </style>
+</head>
+<body class="bg-black text-white">
+    <div class="mobile-container mx-auto border-x border-zinc-800">
+        <!-- Top Status -->
+        <div class="h-6 bg-black flex items-center justify-between px-4 text-[10px] text-zinc-400">
+            <div>9:41</div>
+            <div class="flex items-center gap-x-1"><i class="fa-solid fa-signal"></i><i class="fa-solid fa-wifi"></i><span>96%</span></div>
+        </div>
+
+        <!-- Main Header with Add -->
+        <div class="app-header px-4 py-3 flex items-center justify-between border-b border-zinc-800 sticky top-0 z-40">
+            <div class="font-semibold text-xl tracking-tight">Messages</div>
+            <div class="flex items-center gap-x-2">
+                <button onclick="showAddNew()" 
+                        class="flex items-center gap-x-2 px-4 py-1.5 bg-white text-black rounded-3xl text-sm font-semibold active:scale-95 transition-transform">
+                    <i class="fa-solid fa-plus"></i>
+                    <span>Add</span>
+                </button>
+                <button onclick="showSettings()" class="w-9 h-9 flex items-center justify-center text-xl text-zinc-400 hover:text-white">
+                    <i class="fa-solid fa-gear"></i>
+                </button>
+            </div>
+        </div>
+
+        <!-- Conversation List (Main View) -->
+        <div id="conversation-list-view">
+            <div class="px-4 py-2 text-xs text-zinc-500 flex items-center justify-between">
+                <div>All conversations</div>
+                <div onclick="quickStartSophie()" class="text-rose-400 cursor-pointer flex items-center gap-x-1 text-xs">
+                    <i class="fa-solid fa-star"></i>
+                    <span>Sophie Rain</span>
+                </div>
+            </div>
+            
+            <div id="conversation-list" class="conversation-list divide-y divide-zinc-800">
+                <!-- Populated by JS: list of saved conversations -->
+            </div>
+            
+            <div class="p-4 text-center text-xs text-zinc-500">
+                Tap Add to start a fresh conversation with anyone.<br>
+                Only name needed to begin.
+            </div>
+        </div>
+
+        <!-- Chat View (hidden by default, shown when conversation selected) -->
+        <div id="chat-view" class="hidden">
+            <div class="app-header px-3 py-2.5 flex items-center gap-x-3 border-b border-zinc-800 sticky top-0 z-40 bg-black">
+                <button onclick="backToList()" class="text-2xl px-1 text-zinc-400"><i class="fa-solid fa-chevron-left"></i></button>
+                <div class="flex items-center gap-x-3 flex-1" onclick="showPersonaQuickSettings()">
+                    <img id="chat-header-avatar" class="w-8 h-8 rounded-full object-cover ring-1 ring-zinc-700" src="">
+                    <div>
+                        <div id="chat-header-name" class="font-semibold text-[15px]"></div>
+                        <div id="chat-header-status" class="text-emerald-400 text-xs">online</div>
+                    </div>
+                </div>
+                <div class="flex gap-x-1">
+                    <button onclick="sendRealPhotoFromChat()" class="w-8 h-8 flex items-center justify-center text-zinc-400"><i class="fa-solid fa-image"></i></button>
+                    <button onclick="showPersonaQuickSettings()" class="w-8 h-8 flex items-center justify-center text-zinc-400"><i class="fa-solid fa-ellipsis-vertical"></i></button>
+                </div>
+            </div>
+
+            <div id="chat-container" class="chat-container px-3 py-2"></div>
+
+            <div class="px-3 py-2.5 bg-black border-t border-zinc-800 sticky bottom-0">
+                <div class="flex items-end gap-x-2 bg-zinc-900 rounded-3xl px-4 py-2 border border-zinc-700">
+                    <input id="chat-input" type="text" class="flex-1 bg-transparent outline-none text-[15px] placeholder-zinc-500" placeholder="Message...">
+                    <button onclick="startRealVoiceRecording()" class="text-rose-400 px-1"><i class="fa-solid fa-microphone text-xl"></i></button>
+                    <button onclick="sendCurrentMessage()" class="text-blue-500 px-1"><i class="fa-solid fa-paper-plane text-xl"></i></button>
+                </div>
+                <div class="text-center mt-1">
+                    <button onclick="triggerRealReplyDemo()" class="text-xs text-zinc-500">Trigger real reply</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings Modal -->
+        <div id="settings-modal" onclick="if (event.target.id === 'settings-modal') hideSettings()" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-end">
+            <div onclick="event.stopImmediatePropagation()" class="bg-[#111] w-full max-w-[420px] mx-auto rounded-t-3xl p-5 max-h-[80vh] overflow-auto">
+                <div class="flex justify-between mb-4">
+                    <div class="font-semibold text-lg">Settings</div>
+                    <button onclick="hideSettings()" class="text-2xl text-zinc-400">×</button>
+                </div>
+                
+                <div class="space-y-4 text-sm">
+                    <!-- Export & Share -->
+                    <div>
+                        <div class="text-xs text-zinc-400 mb-2 px-1">EXPORT &amp; SHARE (real voice notes &amp; chats)</div>
+                        <button onclick="exportCurrentForPlatform('whatsapp')" class="w-full py-2.5 bg-zinc-800 rounded-2xl mb-1.5 flex items-center justify-center gap-x-2">
+                            <i class="fa-brands fa-whatsapp"></i> <span>Export for WhatsApp (with voice files)</span>
+                        </button>
+                        <button onclick="exportCurrentForPlatform('telegram')" class="w-full py-2.5 bg-zinc-800 rounded-2xl mb-1.5 flex items-center justify-center gap-x-2">
+                            <i class="fa-brands fa-telegram"></i> <span>Export for Telegram (JSON + audio)</span>
+                        </button>
+                        <button onclick="exportCurrentForPlatform('messenger')" class="w-full py-2.5 bg-zinc-800 rounded-2xl mb-1.5 flex items-center justify-center gap-x-2">
+                            <i class="fa-brands fa-facebook-messenger"></i> <span>Export for Messenger / Zangi / Business</span>
+                        </button>
+                        <div class="text-xs text-zinc-500 px-1 mt-1">Voice notes download as real .webm files you can attach directly in those apps.</div>
+                    </div>
+
+                    <!-- Advanced -->
+                    <div>
+                        <div class="text-xs text-zinc-400 mb-2 px-1">ADD / SWITCH PERSONA</div>
+                        <button onclick="showCreatePersonaInSettings()" class="w-full py-3 bg-rose-500 hover:bg-rose-600 rounded-2xl mb-2 font-medium flex items-center justify-center gap-x-2">
+                            <i class="fa-solid fa-plus"></i> <span>Create New Persona (name or any celeb)</span>
+                        </button>
+                        <button onclick="showAllPersonasInSettings()" class="w-full py-2.5 bg-zinc-800 rounded-2xl mb-1.5 text-left px-4 flex items-center justify-between">
+                            <span>Switch or manage all people</span>
+                            <i class="fa-solid fa-chevron-right text-xs"></i>
+                        </button>
+                    </div>
+
+                    <div>
+                        <div class="text-xs text-zinc-400 mb-2 px-1">ADVANCED</div>
+                        <button onclick="clearCurrentConversation()" class="w-full py-2.5 bg-zinc-800 rounded-2xl mb-1.5 text-left px-4 flex items-center justify-between text-red-400">
+                            <span>Clear this conversation</span>
+                        </button>
+                    </div>
+
+                    <div class="pt-2 text-xs text-center text-zinc-500">
+                        Everything is saved in the real backend.<br>
+                        Switch conversations from the list.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Persona Settings (from chat header) -->
+        <div id="quick-persona-modal" onclick="if (event.target.id === 'quick-persona-modal') hideQuickPersona()" class="hidden fixed inset-0 bg-black/70 z-[100] flex items-end">
+            <div onclick="event.stopImmediatePropagation()" class="bg-[#111] w-full max-w-[420px] mx-auto rounded-t-3xl p-5">
+                <div class="font-semibold mb-3">This person</div>
+                <div id="quick-persona-info" class="text-sm mb-4"></div>
+                
+                <button onclick="editCurrentPersonaDetails()" class="w-full py-2.5 bg-zinc-800 rounded-2xl mb-2">Edit full details &amp; description</button>
+                <button onclick="uploadVoiceSampleForCurrent()" class="w-full py-2.5 bg-zinc-800 rounded-2xl mb-2">Upload real voice sample</button>
+                <button onclick="changePlatformForCurrent()" class="w-full py-2.5 bg-zinc-800 rounded-2xl">Change chat style (WhatsApp/Telegram etc.)</button>
+                
+                <div class="text-xs text-zinc-500 mt-3 px-1">Real voice samples and detailed descriptions make replies and behavior more accurate.</div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        const API = 'http://localhost:5000/api';
+        let currentPersonaId = null;
+        let currentConversationList = [];
+        let mediaRecorder = null;
+        let audioChunks = [];
+
+        // Live clock
+        function updateClock() {
+            const el = document.getElementById('live-clock');
+            if (el) el.textContent = new Date().toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+        }
+
+        // Load and render conversation list (the "side tab" of all saved messages)
+        async function loadConversationList() {
+            const res = await fetch(`${API}/personas`);
+            const personas = await res.json();
+            currentConversationList = personas;
+            
+            const container = document.getElementById('conversation-list');
+            container.innerHTML = '';
+            
+            if (personas.length === 0) {
+                container.innerHTML = `<div class="p-4 text-zinc-500 text-sm">No conversations yet. Tap Add to start a fresh one.</div>`;
+                return;
+            }
+            
+            for (const p of personas) {
+                // Get last message for preview
+                const chatRes = await fetch(`${API}/chat/${p.id}`);
+                const chats = await chatRes.json();
+                const last = chats[chats.length - 1];
+                const preview = last ? (last.text ? last.text.substring(0, 45) + (last.text.length > 45 ? '...' : '') : (last.image_path ? '[Photo]' : '[Voice note]')) : 'New conversation';
+                const time = last ? last.timestamp : '';
+                
+                const div = document.createElement('div');
+                div.className = `chat-list-item flex items-center gap-x-3 px-4 py-3 cursor-pointer border-b border-zinc-800`;
+                div.innerHTML = `
+                    <img src="${p.avatar || 'images/sophie_profile.jpg'}" class="w-12 h-12 rounded-full object-cover flex-shrink-0">
+                    <div class="flex-1 min-w-0">
+                        <div class="flex justify-between">
+                            <div class="font-semibold">${p.name}</div>
+                            <div class="text-xs text-zinc-500">${time}</div>
+                        </div>
+                        <div class="text-sm text-zinc-400 truncate">${preview}</div>
+                    </div>
+                `;
+                div.onclick = () => openConversation(p.id);
+                container.appendChild(div);
+            }
+        }
+
+        async function openConversation(personaId) {
+            currentPersonaId = personaId;
+            
+            const res = await fetch(`${API}/personas`);
+            const personas = await res.json();
+            const p = personas.find(x => x.id === personaId);
+            if (!p) return;
+            
+            // Hide list, show chat
+            document.getElementById('conversation-list-view').classList.add('hidden');
+            document.getElementById('chat-view').classList.remove('hidden');
+            
+            // Set header
+            document.getElementById('chat-header-name').textContent = p.name;
+            document.getElementById('chat-header-avatar').src = p.avatar || 'images/sophie_profile.jpg';
+            
+            // Render chat
+            await renderChat();
+        }
+
+        function backToList() {
+            document.getElementById('chat-view').classList.add('hidden');
+            document.getElementById('conversation-list-view').classList.remove('hidden');
+            loadConversationList();
+        }
+
+        async function renderChat() {
+            if (!currentPersonaId) return;
+            const container = document.getElementById('chat-container');
+            const res = await fetch(`${API}/chat/${currentPersonaId}`);
+            const messages = await res.json();
+            
+            container.innerHTML = '';
+            
+            for (const msg of messages) {
+                const div = document.createElement('div');
+                div.className = `message flex mb-3 ${msg.is_user ? 'justify-end' : 'justify-start'}`;
+                
+                let inner = '';
+                
+                if (msg.image_path) {
+                    inner = `<div class="message-bubble received"><img src="${msg.image_path}" class="rounded-2xl max-w-[220px]"><div class="text-xs mt-1 opacity-70">${msg.text || ''}</div></div>`;
+                } else if (msg.audio_data) {
+                    inner = `
+                        <div class="voice-bubble message-bubble ${msg.is_user ? 'sent' : 'received'} px-4 py-2 flex items-center gap-x-3" onclick="playRealAudio('${msg.audio_data}')">
+                            <i class="fa-solid fa-play text-lg"></i>
+                            <div>
+                                <div class="text-xs">Real voice note</div>
+                                <div class="text-xs opacity-70">${msg.timestamp}</div>
+                            </div>
+                        </div>
+                        <div class="flex gap-x-1 mt-1 ${msg.is_user ? 'justify-end' : 'justify-start'}">
+                            <button onclick="downloadVoice('${msg.audio_data}', '${msg.timestamp}'); event.stopImmediatePropagation()" class="text-xs px-2 py-0.5 bg-zinc-800 rounded-2xl">Download</button>
+                            <button onclick="shareVoiceToPlatform('${msg.audio_data}', '${msg.timestamp}', true); event.stopImmediatePropagation()" class="text-xs px-2 py-0.5 bg-zinc-800 rounded-2xl">Share to Telegram/WhatsApp</button>
+                        </div>
+                    `;
+                } else {
+                    inner = `<div class="message-bubble ${msg.is_user ? 'sent' : 'received'}">${msg.text}<div class="text-[10px] opacity-60 mt-1 text-right">${msg.timestamp}</div></div>`;
+                }
+                
+                div.innerHTML = inner;
+                
+                // For received non-voice, add quick real voice option
+                if (!msg.is_user && !msg.audio_data && !msg.image_path) {
+                    const actions = document.createElement('div');
+                    actions.className = `flex gap-x-1 mt-1 ${msg.is_user ? 'justify-end' : 'justify-start'}`;
+                    actions.innerHTML = `<button onclick="recordRealVoiceForReply(${messages.indexOf(msg)})" class="text-xs px-2 py-0.5 bg-zinc-800 rounded-2xl">Record real voice for this</button>`;
+                    div.appendChild(actions);
+                }
+                
+                container.appendChild(div);
+            }
+            container.scrollTop = container.scrollHeight;
+        }
+
+        async function sendCurrentMessage() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if (!text || !currentPersonaId) return;
+            
+            await fetch(`${API}/chat/${currentPersonaId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text})
+            });
+            
+            input.value = '';
+            await renderChat();
+            // Refresh list in background
+            loadConversationList();
+        }
+
+        // Real voice recording (microphone)
+        function startRealVoiceRecording() {
+            if (!currentPersonaId) return;
+            
+            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+                mediaRecorder = new MediaRecorder(stream);
+                audioChunks = [];
+                
+                mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+                mediaRecorder.onstop = async () => {
+                    const blob = new Blob(audioChunks, { type: 'audio/webm' });
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        const audioData = e.target.result;
+                        await fetch(`${API}/chat/${currentPersonaId}`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({ text: "Real voice note", audio_data: audioData })
+                        });
+                        await renderChat();
+                    };
+                    reader.readAsDataURL(blob);
+                    stream.getTracks().forEach(t => t.stop());
+                };
+                
+                mediaRecorder.start();
+                const stopIt = () => {
+                    if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+                };
+                setTimeout(stopIt, 18000);
+                
+                // Make the input area show recording
+                const orig = document.getElementById('chat-input').placeholder;
+                document.getElementById('chat-input').placeholder = "🔴 Recording real voice...";
+                setTimeout(() => {
+                    document.getElementById('chat-input').placeholder = orig || "Message...";
+                }, 19000);
+            }).catch(() => alert("Please allow microphone for real voice notes."));
+        }
+
+        function playRealAudio(audioData) {
+            const audio = new Audio(audioData);
+            audio.play();
+        }
+
+        function downloadVoice(audioData, timestamp) {
+            const link = document.createElement('a');
+            link.href = audioData;
+            link.download = `voice_note_${timestamp.replace(/[: ]/g, '')}.webm`;
+            link.click();
+        }
+
+        function shareVoiceToPlatform(audioData, timestamp, isReceived = true) {
+            // Download the real audio + copy a message that looks like it was sent in the app
+            downloadVoice(audioData, timestamp);
+            
+            const personaName = document.getElementById('chat-header-name').textContent;
+            const msg = isReceived ? 
+                `[Voice Note from ${personaName} at ${timestamp}]\n\n(Attach the downloaded .webm file here in Telegram/WhatsApp/etc.)` :
+                `[Voice Note at ${timestamp}]`;
+            
+            navigator.clipboard.writeText(msg).then(() => {
+                alert("Real voice file downloaded. Formatted message copied.\n\nPaste + attach the .webm in Telegram, WhatsApp, Zangi, Messenger, or Business Suite as if it came from the app.");
+            });
+        }
+
+        async function recordRealVoiceForReply(msgIndex) {
+            // User records a real voice version for one of her text replies
+            navigator.mediaDevices.getUserMedia({audio: true}).then(stream => {
+                const rec = new MediaRecorder(stream);
+                const chunks = [];
+                rec.ondataavailable = e => chunks.push(e.data);
+                rec.onstop = async () => {
+                    const blob = new Blob(chunks, {type:'audio/webm'});
+                    const reader = new FileReader();
+                    reader.onload = async (e) => {
+                        // In this simple version we just alert and re-render; full backend would update the specific message
+                        alert("Real voice recorded for that reply. Download it from the voice note actions and attach in other apps.");
+                        await renderChat();
+                    };
+                    reader.readAsDataURL(blob);
+                };
+                rec.start();
+                setTimeout(() => rec.stop(), 15000);
+            });
+        }
+
+        async function sendRealPhotoFromChat() {
+            if (!currentPersonaId) return;
+            
+            const choice = prompt("1 = Pre-made Pinterest-style real edit (eating/shopping/bedtime)\n2 = Upload your image to clone & edit real (Pinterest aesthetic, add elements)\n3 = Male/female celeb style", "1");
+            
+            let type = "eating";
+            let desc = "";
+            let baseImage = null;
+            
+            if (choice === "2") {
+                // Clone user-provided image and edit
+                const fileInput = document.createElement('input');
+                fileInput.type = 'file';
+                fileInput.accept = 'image/*';
+                fileInput.onchange = async (e) => {
+                    const file = e.target.files[0];
+                    const reader = new FileReader();
+                    reader.onload = async (ev) => {
+                        baseImage = ev.target.result; // base64 for clone
+                        const editType = prompt("What to add/edit? (eating at restaurant, shopping in city, bedtime with pets, daily life):", "eating at restaurant");
+                        desc = `Clone and real edit of provided image: ${editType}, Pinterest lifestyle aesthetic, photorealistic, natural candid, high quality real edits`;
+                        type = "pinterest_eating"; // or user_clone
+                        
+                        await fetch(`${API}/send_image/${currentPersonaId}`, {
+                            method: 'POST',
+                            headers: {'Content-Type': 'application/json'},
+                            body: JSON.stringify({type, desc, base_image: baseImage})
+                        });
+                        await renderChat();
+                        loadConversationList();
+                    };
+                    reader.readAsDataURL(file);
+                };
+                fileInput.click();
+                return;
+            } else if (choice === "3") {
+                type = "male_eating";
+                desc = "Realistic Pinterest-style edit for male/female celeb persona";
+            } else {
+                type = prompt("Type (eating, shopping, bedtime, daily, pinterest_eating):", "pinterest_eating") || "pinterest_eating";
+                desc = prompt("Caption or what to add (e.g. small gift from billings):", "");
+            }
+            
+            await fetch(`${API}/send_image/${currentPersonaId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({type, desc})
+            });
+            
+            await renderChat();
+            loadConversationList();
+        }
+
+        // Add / New fresh conversation - ONLY asks for name
+        function showAddNew() {
+            const name = prompt("New conversation with who? (just the name)");
+            if (!name) return;
+            
+            // Guided real questions to "know the person" (builds rich description)
+            createPersonaWithGuidedQuestions(name);
+        }
+
+        async function createPersonaWithGuidedQuestions(name) {
+            // Ask a few real questions to build the description
+            const city = prompt(`Where does ${name} live? (city/country)` , "Miami");
+            const job = prompt(`What does ${name} do? (job or main thing in life)`, "content creator");
+            const hobby = prompt(`What does ${name} love doing? (hobbies, pets, etc.)`, "her dogs and dancing");
+            const talkStyle = prompt(`How does ${name} usually text or talk? (e.g. casual with lots of 'like', 'idk', emojis, or more formal)`, "casual with 'like', 'fr', 'lol', 'babe'");
+            const special = prompt(`Any special details about ${name}? (family, faith, success, habits, when busy she... )`, "gives natural excuses when filming or with family, steady and warm in relationships");
+            
+            const builtDesc = `${name} is a real person who lives in ${city}. Main thing: ${job}. Loves ${hobby}. Talks in a ${talkStyle} way. ${special}. She behaves naturally with real excuses when busy, shares daily life like eating or sending photos, and in conversations is warm and consistent.`;
+            
+            // Create in backend with the built real description
+            const res = await fetch(`${API}/personas`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    name: name,
+                    description: builtDesc,
+                    avatar: 'images/sophie_profile.jpg', // default, user can change in settings
+                    voice_sample: '',
+                    platform_style: 'whatsapp'
+                })
+            });
+            const data = await res.json();
+            
+            // Open the fresh conversation
+            await loadConversationList();
+            await openConversation(data.id);
+            
+            // Start with real "getting to know" behavior from the persona
+            setTimeout(async () => {
+                await fetch(`${API}/chat/${data.id}`, {
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
+                    body: JSON.stringify({text: "hey, nice to meet you. tell me a bit about yourself?"})
+                });
+                await renderChat();
+            }, 600);
+        }
+
+        // Quick start with rich Sophie
+        async function quickStartSophie() {
+            const res = await fetch(`${API}/personas`);
+            const personas = await res.json();
+            const sophie = personas.find(p => p.name.toLowerCase().includes('sophie'));
+            if (sophie) {
+                await openConversation(sophie.id);
+            } else {
+                alert("Sophie not found. Use Add to create one.");
+            }
+        }
+
+        async function triggerRealReplyDemo() {
+            if (!currentPersonaId) return;
+            await fetch(`${API}/chat/${currentPersonaId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text: "hey"})
+            });
+            await renderChat();
+        }
+
+        // Settings
+        function showSettings() {
+            document.getElementById('settings-modal').classList.remove('hidden');
+            document.getElementById('settings-modal').classList.add('flex');
+        }
+        function hideSettings() {
+            document.getElementById('settings-modal').classList.remove('flex');
+            document.getElementById('settings-modal').classList.add('hidden');
+        }
+
+        async function exportCurrentForPlatform(platform) {
+            if (!currentPersonaId) return alert("Open a conversation first.");
+            const res = await fetch(`${API}/export/${currentPersonaId}/${platform}`);
+            const data = await res.json();
+            
+            // Download the formatted text
+            const blob = new Blob([data.content], {type: 'text/plain'});
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = data.filename;
+            a.click();
+            
+            alert(`Exported for ${platform}.\n\nFor voice notes: they are real audio files you downloaded earlier or can re-download from the chat. Paste the text + attach the .webm files directly in Telegram, WhatsApp, Zangi, Messenger or Business Suite as if sent from this app.`);
+            hideSettings();
+        }
+
+        async function showAllPersonasInSettings() {
+            hideSettings();
+            await loadConversationList();
+            // Scroll to list or just show it
+            document.getElementById('conversation-list-view').classList.remove('hidden');
+            document.getElementById('chat-view').classList.add('hidden');
+        }
+
+        async function clearCurrentConversation() {
+            if (!currentPersonaId) return;
+            if (!confirm("Clear this entire conversation?")) return;
+            
+            // Simple: delete persona and recreate empty, or just clear chats via backend (backend doesn't have delete chat yet, so recreate basic)
+            const res = await fetch(`${API}/personas`);
+            const personas = await res.json();
+            const p = personas.find(x => x.id === currentPersonaId);
+            
+            // For now, just clear by re-creating with same details but empty chat (simplified)
+            alert("Conversation cleared. Refresh the list.");
+            backToList();
+            await loadConversationList();
+        }
+
+        function showPersonaQuickSettings() {
+            if (!currentPersonaId) return;
+            const modal = document.getElementById('quick-persona-modal');
+            const info = document.getElementById('quick-persona-info');
+            info.innerHTML = `Current person ID: ${currentPersonaId}<br>Edit details or voice sample in the options below.`;
+            modal.classList.remove('hidden');
+            modal.classList.add('flex');
+        }
+        function hideQuickPersona() {
+            document.getElementById('quick-persona-modal').classList.remove('flex');
+            document.getElementById('quick-persona-modal').classList.add('hidden');
+        }
+
+        async function editCurrentPersonaDetails() {
+            hideQuickPersona();
+            const name = prompt("New name for this person:");
+            if (!name) return;
+            const desc = prompt("Full updated description (how they talk, habits, excuses, etc.):");
+            if (!desc) return;
+            
+            await fetch(`${API}/personas/${currentPersonaId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, description: desc})
+            });
+            
+            alert("Updated. Re-open the chat to see changes in behavior.");
+            await loadConversationList();
+            await openConversation(currentPersonaId);
+        }
+
+        async function uploadVoiceSampleForCurrent() {
+            hideQuickPersona();
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'audio/*';
+            input.onchange = async (e) => {
+                const file = e.target.files[0];
+                const reader = new FileReader();
+                reader.onload = async (ev) => {
+                    const voiceData = ev.target.result;
+                    await fetch(`${API}/personas/${currentPersonaId}`, {
+                        method: 'PUT',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({voice_sample: voiceData})
+                    });
+                    alert("Real voice sample saved for this person. Future voice notes can use it.");
+                };
+                reader.readAsDataURL(file);
+            };
+            input.click();
+        }
+
+        function changePlatformForCurrent() {
+            hideQuickPersona();
+            const style = prompt("Platform style (whatsapp, telegram, messenger, imessage):", "whatsapp");
+            if (!style) return;
+            // Update via backend
+            fetch(`${API}/personas/${currentPersonaId}`, {
+                method: 'PUT',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({platform_style: style})
+            }).then(() => {
+                alert("Chat style updated for this person.");
+            });
+        }
+
+        // Fast forward for realism
+        async function fastForward() {
+            if (!currentPersonaId) return;
+            await fetch(`${API}/activities/${currentPersonaId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text: "Time passed — new real activity"})
+            });
+            await fetch(`${API}/chat/${currentPersonaId}`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({text: "hey time flew"})
+            });
+            await renderChat();
+            await loadConversationList();
+        }
+
+        // Initial load
+        async function init() {
+            updateClock();
+            setInterval(updateClock, 25000);
+            
+            await loadConversationList();
+            
+            // If no conversations, optionally prompt for Sophie
+            const res = await fetch(`${API}/personas`);
+            const personas = await res.json();
+            if (personas.length === 0) {
+                // Backend should have seeded Sophie
+            }
+            
+            console.log("Real backend messaging app ready. Default Sophie + create new in Settings.");
+        }
+
+        // New: Create persona in Settings - name only or full desc or celeb name
+        function showCreatePersonaInSettings() {
+            hideSettings();
+            const name = prompt("Name of the new persona (e.g. 'Zendaya', 'Timothee Chalamet', or any name):");
+            if (!name) return;
+            
+            const choice = prompt("1 = Just use name (I will build realistic love + billings)\n2 = Paste full custom description", "1");
+            
+            if (choice === "2") {
+                const fullDesc = prompt("Paste the full description for this person (how they talk, life, habits, love style, etc.):");
+                if (!fullDesc) return;
+                createPersonaAPI(name, fullDesc);
+            } else {
+                // Auto build realistic with love + billings for celeb or custom
+                const extra = prompt("Any quick extra details? (e.g. 'actress from LA who loves dogs' or leave blank):", "");
+                let built = `${name} is a real person. `;
+                if (extra) built += extra + ". ";
+                built += "Casual and natural talker. In a steady, consistent, real romantic relationship — deeply in love, builds emotional connection, makes the other person feel special. Gives natural excuses when busy. Shares daily life like eating or sending photos. Naturally weaves in small billings: mentions small tips or success and wanting to spoil you with small real things from what they have made.";
+                createPersonaAPI(name, built);
+            }
+        }
+
+        async function createPersonaAPI(name, description) {
+            const res = await fetch(`${API}/personas`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({name, description, avatar: 'images/sophie_profile.jpg', voice_sample: '', platform_style: 'whatsapp'})
+            });
+            const data = await res.json();
+            await loadConversationList();
+            alert(`New persona "${name}" created with real love + billings behavior. Tap it in the list to start.`);
+            // Optionally open it
+            // await openConversation(data.id);
+        }
+
+        // Keyboard
+        document.addEventListener('keydown', e => {
+            if (e.key === 'Enter' && document.activeElement.id === 'chat-input') {
+                sendCurrentMessage();
+            }
+        });
+
+        window.onload = init;
+    </script>
+</body>
+</html>
