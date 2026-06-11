@@ -1,17 +1,17 @@
-from flask import Flask, request, jsonify, send_from_directory, render_template_string
+from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
-import sqlite3
-import json
-import os
-from datetime import datetime, timedelta
-import random
-import base64
+import sqlite3, json, os, random, hashlib
+from datetime import datetime
 
 app = Flask(__name__, static_folder='static', template_folder='templates')
 CORS(app)
 
 DB_PATH = 'sophie_real.db'
-IMAGES_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'images')  # points to workspace images
+IMAGES_DIR = os.path.join(os.path.dirname(__file__), '..', 'images')
+
+# ─────────────────────────────────────────
+# DB SETUP
+# ─────────────────────────────────────────
 
 def get_db():
     conn = sqlite3.connect(DB_PATH)
@@ -21,197 +21,627 @@ def get_db():
 def init_db():
     conn = get_db()
     c = conn.cursor()
-    
-    # Personas table
     c.execute('''CREATE TABLE IF NOT EXISTS personas (
-        id TEXT PRIMARY KEY,
-        name TEXT,
-        description TEXT,
-        avatar TEXT,
-        voice_sample TEXT,
-        platform_style TEXT DEFAULT 'whatsapp',
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    )''')
-    
-    # Chats table
+        id TEXT PRIMARY KEY, name TEXT, description TEXT,
+        avatar TEXT, voice_sample TEXT, platform_style TEXT DEFAULT 'imessage',
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)''')
     c.execute('''CREATE TABLE IF NOT EXISTS chats (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        persona_id TEXT,
-        is_user INTEGER,
-        text TEXT,
-        audio_data TEXT,
-        image_path TEXT,
-        timestamp TEXT,
-        time_ms INTEGER,
-        FOREIGN KEY (persona_id) REFERENCES personas(id)
-    )''')
-    
-    # Activities table
+        id INTEGER PRIMARY KEY AUTOINCREMENT, persona_id TEXT,
+        is_user INTEGER, text TEXT, audio_data TEXT, image_path TEXT,
+        timestamp TEXT, time_ms INTEGER,
+        FOREIGN KEY (persona_id) REFERENCES personas(id))''')
     c.execute('''CREATE TABLE IF NOT EXISTS activities (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        persona_id TEXT,
-        text TEXT,
-        timestamp TEXT,
-        time_ms INTEGER,
-        FOREIGN KEY (persona_id) REFERENCES personas(id)
-    )''')
-    
-    # User profile (single for now)
+        id INTEGER PRIMARY KEY AUTOINCREMENT, persona_id TEXT,
+        text TEXT, timestamp TEXT, time_ms INTEGER,
+        FOREIGN KEY (persona_id) REFERENCES personas(id))''')
     c.execute('''CREATE TABLE IF NOT EXISTS user_profile (
-        id INTEGER PRIMARY KEY,
-        name TEXT,
-        description TEXT,
-        avatar TEXT
-    )''')
-    
-    conn.commit()
-    conn.close()
+        id INTEGER PRIMARY KEY, name TEXT, description TEXT, avatar TEXT)''')
+    c.execute('''CREATE TABLE IF NOT EXISTS persona_state (
+        persona_id TEXT PRIMARY KEY, mood TEXT DEFAULT 'warm',
+        used_lines TEXT DEFAULT '[]', message_count INTEGER DEFAULT 0,
+        last_topics TEXT DEFAULT '[]',
+        FOREIGN KEY (persona_id) REFERENCES personas(id))''')
+    conn.commit(); conn.close()
 
 init_db()
 
-# Default Sophie Rain (enhanced with more real details)
-DEFAULT_SOPHIE_DESC = """21-year-old mixed (Filipino mother, white father) from Miami, Florida. Co-founder of Bop House. TikTok and Instagram star with millions of followers. OnlyFans creator who has claimed massive earnings (40M+ in first year, up to 80M+ later) but stays humble, posts receipts, and helps her family (grew up on food stamps, dad cried when she sent money home). Loves her two dachshunds Coco and Lola obsessively. Pokémon Go addict (in her bio). Christian, virgin, saving herself for marriage/husband. Casual, transparent, sassy toward haters, laughs them off. Real talker: uses like, idk, fr, ngl, lol, babe, you know, lowercase often. Gives natural excuses when busy with shoots, dogs, sister Sierra, family, content, time zones. In a steady, consistent, real romantic relationship — deeply in love, builds emotional connection, makes the other person feel like the most important real thing in her crazy successful life. Shares daily life details: dancing, filming, dogs, Miami views, calls with family. When it is late she sends sleepy goodnights. Eats and shares meals. Sends real photos of daily life, eating, shopping, bedtime with dogs. Naturally weaves in small billings and real financial things: mentions small fan tips, puts a little aside for us, wants to spoil you with small things from what she has made, references her success humbly in loving contexts."""
+# ─────────────────────────────────────────
+# SOPHIE RAIN DEEP PERSONALITY ENGINE
+# ─────────────────────────────────────────
 
-# Helper: Generate very real reply
-def generate_real_reply(persona_desc, user_name, user_desc, user_msg, recent_activities, current_hour, persona_name):
-    lower_msg = user_msg.lower()
-    reply = ""
-    has_excuse = False
-    
-    # Time-based real behaviors
-    if current_hour >= 22 or current_hour <= 6:
-        reply = random.choice([
-            "it's getting so late here... ",
-            "sorry babe, i was trying to wind down but saw your text... ",
-            "can't sleep, was scrolling and your name popped up... "
-        ])
-        has_excuse = True
-    elif 11 <= current_hour <= 14:
-        reply = random.choice([
-            "just sat down to eat something real quick... ",
-            "eating and saw your message, had to reply... "
-        ])
-    
-    # Activity-based excuses (real tracking)
-    if recent_activities:
-        last_act = recent_activities[-1]['text'].lower()
-        if any(x in last_act for x in ["shoot", "film", "content", "dance", "tiktok"]):
-            reply = "sorry babe, the shoot ran way over and i just got my phone back... "
-            has_excuse = True
-        elif any(x in last_act for x in ["dog", "coco", "lola"]):
-            reply = "the girls were being absolute chaos, i couldn't even text back properly 😂 sorry... "
-            has_excuse = True
-        elif "sister" in last_act or "sierra" in last_act:
-            reply = "just got off the phone with sierra, my bad for the delay... "
-            has_excuse = True
-        elif "tip" in last_act or "fan" in last_act:
-            reply = "a small tip came in and i got distracted for a minute, sorry... "
-            has_excuse = True
-    
-    # Reference user profile for realism
-    if user_name and user_name.lower() not in ["babe", "you"]:
-        if "work" in lower_msg or "day" in lower_msg:
-            reply += f"how was work today? hope it wasn't too crazy with the {user_desc.split(',')[0] if ',' in user_desc else 'stuff'}... "
-        if "basketball" in user_desc.lower() or "ball" in lower_msg:
-            reply += "did you get any games in or watch something good? "
-    
-    # Persona specific (Sophie details)
-    if "sophie" in persona_name.lower() or "miami" in persona_desc.lower():
-        if "pokemon" in lower_msg or random.random() > 0.7:
-            reply += "i caught a shiny earlier on my walk, it made me stupid happy lol. "
+SOPHIE_DESC = """21-year-old mixed Filipino-white from Miami. Co-founder of Bop House.
+TikTok and Instagram star with millions of followers. OnlyFans creator.
+Two dachshunds Coco and Lola — total obsession. Pokémon Go addict.
+Christian, saving herself for marriage. Sister Sierra (close). 
+Texts lowercase, casual — like, fr, ngl, idk, babe, honestly, lowkey.
+Natural talker: shares daily life, has real moods, gets tired, gets excited."""
+
+# ── MOOD SYSTEM ──────────────────────────────────────────────────────────────
+MOODS = ['warm', 'flirty', 'tired', 'excited', 'thoughtful', 'playful', 'soft']
+
+MOOD_SHIFTS = {
+    'warm':      {'love': 'soft', 'miss': 'soft', 'busy': 'thoughtful', 'night': 'tired'},
+    'flirty':    {'miss': 'soft', 'tired': 'warm', 'morning': 'warm'},
+    'tired':     {'love': 'soft', 'morning': 'warm', 'miss': 'soft'},
+    'excited':   {'chill': 'warm', 'tired': 'warm', 'night': 'tired'},
+    'thoughtful':{'love': 'soft', 'miss': 'soft', 'morning': 'warm'},
+    'playful':   {'miss': 'flirty', 'night': 'tired', 'love': 'soft'},
+    'soft':      {'morning': 'warm', 'excited': 'excited', 'food': 'playful'},
+}
+
+# ── TOPIC DETECTION ──────────────────────────────────────────────────────────
+TOPIC_KEYWORDS = {
+    'miss':    ['miss', 'missing', 'think about you', 'thought of you'],
+    'love':    ['love you', 'love u', 'love me', 'love this', 'ily'],
+    'hey':     ['hey', 'hi ', 'hello', 'hiii', 'hiiii', 'what\'s up', 'wyd', 'wya'],
+    'food':    ['eat', 'eating', 'food', 'hungry', 'dinner', 'lunch', 'breakfast', 'cook', 'order', 'pizza', 'sushi', 'snack'],
+    'tired':   ['tired', 'exhausted', 'sleepy', 'sleep', 'nap', 'bed', 'rest'],
+    'night':   ['goodnight', 'good night', 'gn', 'night night', 'going to sleep', 'heading to bed'],
+    'morning': ['good morning', 'morning', 'gm', 'just woke', 'woke up'],
+    'work':    ['work', 'job', 'office', 'meeting', 'boss', 'shift'],
+    'dog':     ['dog', 'puppy', 'pup', 'pet', 'coco', 'lola', 'dachshund'],
+    'pokemon': ['pokemon', 'pokémon', 'poke', 'shiny', 'raid', 'catch'],
+    'faith':   ['god', 'pray', 'church', 'sunday', 'bible', 'faith', 'blessed', 'blessing'],
+    'family':  ['family', 'mom', 'dad', 'sister', 'sierra', 'parents', 'home'],
+    'sad':     ['sad', 'upset', 'crying', 'bad day', 'hate today', 'rough', 'sucks'],
+    'happy':   ['happy', 'great', 'amazing', 'awesome', 'so good', 'best day', 'excited'],
+    'busy':    ['busy', 'hectic', 'crazy day', 'running around', 'no time'],
+    'how_are_you': ['how are you', 'how u', 'you ok', 'you good', 'you alright', 'how r u'],
+}
+
+def detect_topics(text):
+    low = text.lower()
+    return [t for t, kws in TOPIC_KEYWORDS.items() if any(k in low for k in kws)]
+
+# ── SOPHIE'S REAL LIFE DETAILS (for injection) ────────────────────────────────
+SOPHIE_LIFE_DETAILS = [
+    "coco literally sat on my face this morning to wake me up 😭",
+    "lola learned how to open doors and now i can't have any privacy ever",
+    "coco and lola are literally just chaos wrapped in tiny dog bodies",
+    "i took the girls on a walk at like 7am and it was actually so peaceful",
+    "lola's been extra clingy lately and i'm not complaining at all honestly",
+    "coco figured out how to knock over her water bowl on purpose i'm convinced",
+    "caught a shiny ralts today on my walk and i lost my mind a little lol",
+    "i've been doing pokémon go raids every morning, it's actually my therapy",
+    "got a shiny yesterday and texted sierra immediately she doesn't care but i do",
+    "my pokémon go buddy is fully attached to me now, i feel so bad logging off",
+    "went on a long walk just for pokémon go and accidentally exercised for an hour",
+    "me and sierra were on the phone for like two hours earlier, she never lets me go",
+    "sierra is literally my other half i love her so much",
+    "was on a call with my mom earlier, she always makes everything feel better",
+    "my mom has a way of just calming me down in like 30 seconds",
+    "filming content today and i'm finally happy with how it came out",
+    "had a shoot today — ran like two hours over but it was worth it",
+    "editing in bed right now, the girls are passed out on either side of me",
+    "been filming since 9am and my brain is genuinely running out of juice",
+    "just wrapped everything for the day and i feel like i need to lie down for a year",
+    "miami is so pretty in the evenings, i walked to the waterfront earlier",
+    "it was actually overcast in miami today which almost never happens and i loved it",
+    "sat outside with coffee this morning and it was genuinely perfect",
+    "i keep thinking about something my pastor said and i can't stop sitting with it",
+    "said a prayer before the shoot today and honestly the whole day went differently",
+    "been feeling really grateful lately, like genuinely. hard to explain",
+    "was journaling this morning and ended up crying in the best way",
+    "made myself actual food for dinner instead of ordering and i'm proud lol",
+    "had the most random craving for ramen at 11pm and fully caved",
+    "just ate the most normal meal but it hit different for some reason",
+    "lit a candle and cleaned my room and now everything feels manageable again",
+    "took a bath and just laid in it for like 45 minutes doing absolutely nothing",
+    "spent an embarrassing amount of time choosing what to watch and then just put on youtube",
+    "been listening to this one playlist on repeat for three days straight now",
+    "danced alone in my room today for like twenty minutes and felt completely unhinged in a good way",
+    "tried to journal and ended up just making a list of things i'm grateful for instead",
+    "got a matcha this morning and it genuinely fixed something in me",
+    "my room smells amazing right now, got a new candle and i'm obsessed",
+    "ordered from this place i've never tried before and it was actually incredible",
+    "been trying to go to bed earlier but then it's midnight and i'm still on my phone lol",
+]
+
+# ── OPENERS BY MOOD ──────────────────────────────────────────────────────────
+OPENERS = {
+    'warm': [
+        "okay hi 🥺",
+        "hey you",
+        "omg finally sitting down",
+        "okay i've been meaning to text back for like an hour sorry",
+        "just got a free second",
+        "hey 🫶",
+        "hi, been thinking about you",
+        "okay i can breathe now lol",
+        "finally done with everything",
+    ],
+    'flirty': [
+        "okay stop i was literally just thinking about you",
+        "hi you 🥺 miss me?",
+        "okay why does talking to you always make my whole mood better",
+        "not me smiling at my phone rn",
+        "you have no idea the effect you have lol",
+        "okay you popped into my head at the worst time and now i can't stop",
+    ],
+    'tired': [
+        "it's so late and i should be asleep but here we are",
+        "okay i'm running on fumes today",
+        "exhausted but i saw your name and had to",
+        "my brain is complete mush right now lol",
+        "been a full day. like a FULL day",
+        "i am so tired but in a way where i still can't sleep. you know?",
+        "the girls are passed out and i should be too but. hi",
+    ],
+    'excited': [
+        "okay WAIT i have to tell you something",
+        "you literally called it at the right time",
+        "okay i've been in my head all day and i just need to talk",
+        "ngl today actually went well and i need to tell someone",
+        "okay okay okay — hi",
+    ],
+    'thoughtful': [
+        "been in my head a lot today",
+        "you ever just... sit with something for a while?",
+        "okay real talk — i was just thinking",
+        "had a whole moment earlier and you were kind of part of it",
+        "ngl been feeling a lot lately",
+    ],
+    'playful': [
+        "okay so the most random thing just happened",
+        "i cannot believe i'm about to tell you this but",
+        "lol okay so",
+        "you're not gonna believe what happened",
+        "okay wait, genuine question:",
+    ],
+    'soft': [
+        "hey 🥺",
+        "okay i miss you",
+        "i was literally just thinking about how much i appreciate you",
+        "not gonna lie you mean more to me than i say",
+        "i just... wanted to say hi. that's it",
+        "i feel like i don't tell you enough but",
+    ],
+}
+
+# ── TOPIC-SPECIFIC RESPONSES ─────────────────────────────────────────────────
+TOPIC_RESPONSES = {
+    'miss': [
+        "i miss you too. like actually a lot. not just saying it.",
+        "omg same. i've been thinking about you more than i'll admit",
+        "okay don't say that i was doing fine 😭 i miss you so much",
+        "missing you too. genuinely. like it sits weird when we haven't talked",
+        "i think about you more than you know. i really do.",
+        "i've been trying not to say it first but yeah. i miss you too.",
+    ],
+    'love': [
+        "stoppp 😭 i feel it too. like actually",
+        "okay you're going to make me emotional for real",
+        "i love you back. not in a generic way. like actually.",
+        "you have no idea how much that lands differently when you say it",
+        "i was about to say the same thing and you beat me to it",
+        "i love you too and i mean it every single time",
+    ],
+    'hey': [
+        "hiii! 🥺 okay how are you for real",
+        "hey! been waiting for you lol",
+        "omg hey! how's your day going?",
+        "hi babe! okay what's going on with you",
+        "hey hey hey — missed hearing from you",
+    ],
+    'food': [
+        "okay what are you eating because now i want something too",
+        "omg i was just thinking about food why",
+        "what did you get?? describe it to me",
+        "i'm so hungry right now don't even bring this up 😭",
+        "okay food is everything. what are we talking about",
+        "i just ate and i'm already thinking about my next meal lol",
+    ],
+    'tired': [
+        "okay same, go get some rest though for real",
+        "ugh tired days are the worst. what made it so long?",
+        "get some sleep babe 🥺 seriously",
+        "you need to rest. like actually. i mean it",
+        "i hear you. been one of those days for me too honestly",
+        "tired in a good way or a bad way? there's a difference lol",
+    ],
+    'night': [
+        "goodnight 🥺 sleep well okay? for real",
+        "aww night!! dream about something nice",
+        "okay but talk to me before you fully go? 🥺",
+        "night babe 🫶 you deserve good sleep",
+        "goodnight. i'm really glad we talked today.",
+        "sleep well. seriously. take care of yourself 🥺",
+    ],
+    'morning': [
+        "good morning!! 🥺 how'd you sleep?",
+        "gm!! okay today is gonna be good i feel it",
+        "morning babe! you're literally the first text i wanted to see",
+        "good morning!! okay i'm still half asleep but hi",
+        "gm 🌅 hope you wake up feeling good today",
+    ],
+    'work': [
+        "ugh work days are long. how was it though?",
+        "you work so hard honestly. are you doing okay?",
+        "work is always a lot. anything interesting happen or just the usual?",
+        "how was it? did it drag or go fast?",
+        "okay tell me about it. i want to hear.",
+    ],
+    'dog': [
+        "okay dogs are literally everything. what kind??",
+        "omg tell me everything about the dog immediately",
+        "coco and lola would lose it if they met a new dog honestly 😂",
+        "dogs are the best thing in existence. no argument.",
+        "i have two dachshunds and they run my entire life lol",
+    ],
+    'pokemon': [
+        "okay are you playing pokémon go too??? because same",
+        "i caught a shiny this morning on my walk i was so excited 😭",
+        "omg a whole player in the wild! what's your buddy right now?",
+        "pokémon go literally gets me up in the morning ngl",
+        "ngl pokémon go saved me from being a shut-in. i walk so much because of it",
+    ],
+    'how_are_you': [
+        "honestly? so much better now that you asked lol 🥺 you?",
+        "tired but good. like the good kind of tired. how about you?",
+        "i'm okay! been a lot today but okay. you doing alright?",
+        "honestly needed to hear that question today. i'm good. you?",
+        "better now. what about you though — how are you actually?",
+        "honestly somewhere between great and a lot right now lol. you?",
+    ],
+    'sad': [
+        "hey, what happened? talk to me.",
+        "okay i'm here. what's going on?",
+        "ugh i'm sorry. bad days are real. what happened?",
+        "i hate that for you. do you want to talk about it or just vent?",
+        "you okay? like actually okay?",
+        "i'm listening. for real. what's going on?",
+    ],
+    'happy': [
+        "yesss!! okay that makes me so happy for you",
+        "i love this energy!!! tell me everything",
+        "okay that's genuinely the best, i'm so glad",
+        "see!!! i knew today would be good for you",
+        "this made my whole day better honestly",
+    ],
+    'faith': [
+        "honestly yes. i've been leaning on that a lot lately",
+        "it's everything to me. like genuinely everything.",
+        "i feel that. i've been praying more and it's been helping so much",
+        "faith is the one thing that keeps me grounded in all of this",
+        "i feel so peaceful when i just sit with that, you know?",
+    ],
+    'family': [
+        "family is everything. i talk to my mom almost every day",
+        "sierra literally is my other half. i don't know what i'd do without her",
+        "home is always where i feel most like myself",
+        "i'm a huge family person honestly. they keep me real",
+    ],
+}
+
+# ── CLOSERS / TURN-BACKS ──────────────────────────────────────────────────────
+CLOSERS = {
+    'warm': [
+        "how was your day?",
+        "tell me something good",
+        "what are you up to right now?",
+        "how are you feeling today?",
+        "okay your turn — what's going on with you?",
+        "you good?",
+        "what have you been up to?",
+    ],
+    'flirty': [
+        "miss me? 🥺",
+        "are you thinking about me too or just me lol",
+        "be honest — how much have you thought about me today",
+        "okay now you 🥺",
+    ],
+    'tired': [
+        "are you doing okay?",
+        "you taking care of yourself?",
+        "how was your day though?",
+        "talk to me",
+    ],
+    'excited': [
+        "okay your turn what's happening with you??",
+        "how's your day going?",
+        "anything good happening on your end?",
+    ],
+    'thoughtful': [
+        "do you ever feel like that?",
+        "is it just me or do you get that too?",
+        "i don't know. what do you think?",
+        "talk to me. what's on your mind?",
+    ],
+    'playful': [
+        "okay your reaction. go.",
+        "what would you have done lol",
+        "tell me the most random thing that happened to you today",
+    ],
+    'soft': [
+        "i'm glad you're here 🥺",
+        "i just really appreciate you. okay? that's it.",
+        "you know that right?",
+        "i hope you know how much you mean to me",
+    ],
+}
+
+# ── CONNECTION LINES (mid-message) ───────────────────────────────────────────
+CONNECTION_LINES = [
+    "talking to you is genuinely the best part of chaotic days like this",
+    "i don't say this to a lot of people but i really do care about you",
+    "you have this way of making things feel lighter just by being there",
+    "idk there's just something different about you",
+    "i feel like i can actually be real with you and that's rare",
+    "you always know what to say even when you're saying nothing",
+    "i think about you more than i probably should and i'm okay with that",
+    "you're genuinely one of my favorite people to talk to",
+    "i feel really comfortable with you and that's not something i say often",
+    "every time we talk i feel like i just exhaled for the first time all day",
+    "you're really special to me. like for real.",
+    "i hope you know how much i appreciate you showing up consistently",
+    "you're one of the very few people i actually look forward to hearing from",
+    "i trust you. and that means a lot coming from me.",
+    "you make me feel really understood and i don't take that lightly",
+]
+
+# ── NATURAL FILLERS (opener variations) ──────────────────────────────────────
+NATURAL_FILLERS = [
+    "okay so", "ngl", "honestly", "fr", "idk why but", "lowkey",
+    "like", "wait", "actually", "real talk", "not gonna lie",
+]
+
+def filler():
+    return random.choice(NATURAL_FILLERS) + " "
+
+# ─────────────────────────────────────────
+# STATE MANAGEMENT
+# ─────────────────────────────────────────
+
+def get_state(conn, persona_id):
+    row = conn.execute('SELECT * FROM persona_state WHERE persona_id=?', (persona_id,)).fetchone()
+    if not row:
+        conn.execute('INSERT INTO persona_state (persona_id) VALUES (?)', (persona_id,))
+        conn.commit()
+        return {'mood': 'warm', 'used_lines': [], 'message_count': 0, 'last_topics': []}
+    return {
+        'mood': row['mood'],
+        'used_lines': json.loads(row['used_lines'] or '[]'),
+        'message_count': row['message_count'] or 0,
+        'last_topics': json.loads(row['last_topics'] or '[]'),
+    }
+
+def save_state(conn, persona_id, state):
+    used = state['used_lines'][-60:]  # keep last 60
+    topics = state['last_topics'][-10:]
+    conn.execute('''INSERT OR REPLACE INTO persona_state
+        (persona_id, mood, used_lines, message_count, last_topics)
+        VALUES (?,?,?,?,?)''',
+        (persona_id, state['mood'],
+         json.dumps(used), state['message_count'], json.dumps(topics)))
+
+def line_hash(s):
+    return hashlib.md5(s.encode()).hexdigest()[:10]
+
+def pick_unique(pool, used):
+    """Pick a random item from pool that hasn't been used recently."""
+    available = [x for x in pool if line_hash(x) not in used]
+    if not available:
+        available = pool  # fallback if all used
+    choice = random.choice(available)
+    return choice, line_hash(choice)
+
+# ─────────────────────────────────────────
+# CORE SOPHIE REPLY ENGINE
+# ─────────────────────────────────────────
+
+def generate_sophie_reply(persona_name, persona_desc, user_name, user_desc,
+                          user_msg, recent_activities, current_hour,
+                          history, state):
+    """
+    Returns: (list_of_message_strings, new_state)
+    """
+    used = list(state.get('used_lines', []))
+    mood = state.get('mood', 'warm')
+    msg_count = state.get('message_count', 0)
+    last_topics = list(state.get('last_topics', []))
+    new_hashes = []
+
+    topics = detect_topics(user_msg)
+    for t in topics:
+        if t in MOOD_SHIFTS.get(mood, {}):
+            mood = MOOD_SHIFTS[mood][t]
+    if not topics and random.random() > 0.7:
+        mood = random.choice(MOODS)
+
+    last_topics = (last_topics + topics)[-10:]
+
+    # ── Build primary message ─────────────────────────────────────────────────
+    parts = []
+
+    # OPENER
+    opener_pool = OPENERS.get(mood, OPENERS['warm'])
+
+    # Topic-specific response overrides opener sometimes
+    topic_response = None
+    for t in topics:
+        if t in TOPIC_RESPONSES:
+            pool = TOPIC_RESPONSES[t]
+            line, h = pick_unique(pool, used)
+            topic_response = line
+            new_hashes.append(h)
+            break
+
+    if topic_response and random.random() > 0.3:
+        # Topic response IS the message body
+        parts.append(topic_response)
+    else:
+        # Build naturally: opener + life detail + connection + closer
+        opener, h = pick_unique(opener_pool, used)
+        parts.append(opener)
+        new_hashes.append(h)
+
+        if topic_response:
+            parts.append(topic_response)
+
+        # Add a real life detail ~60% of the time
+        if random.random() > 0.4:
+            detail, h = pick_unique(SOPHIE_LIFE_DETAILS, used)
+            parts.append(detail)
+            new_hashes.append(h)
+
+        # Add a connection line ~40% of the time (not too often)
         if random.random() > 0.6:
-            reply += "the dogs are passed out on me right now. "
-    
-    # Keyword real responses
-    if "miss" in lower_msg or "love you" in lower_msg:
-        reply += "i miss you so much too. like actually a lot. you make all the crazy stuff feel worth it. "
-    elif "eat" in lower_msg or "food" in lower_msg:
-        reply += "i was just about to eat something myself... what did you have? "
-    elif "busy" in lower_msg:
-        reply += "yeah today has been nonstop but you're always worth making time for. "
-    elif not reply:
-        reply = random.choice(["hey babe... ", "just saw this... ", "you popped into my head... "])
-    
-    # Steady real love (always build connection for any persona)
-    love_lines = [
-        "you're the one thing that actually feels steady and real in all this.",
-        "talking to you makes the whole fame and noise feel quiet and good.",
-        "i love you for real. the actual you, not any version online.",
-        "can't wait for when we can just be together without all the schedules."
-    ]
-    reply += random.choice(love_lines) + " "
-    
-    # Small billings and real financial things (for any persona - natural in love context)
-    if random.random() > 0.5:
-        bill_lines = [
-            "saw a small tip come in earlier and it made me think of spoiling you with something cute.",
-            "i put a little aside from what I have made for us.",
-            "one of my fans sent a small sweet thing today. it was cute but nothing beats sharing real things with you.",
-            "I have been thinking about using a tiny bit of what I have earned to get you something small and nice."
+            conn_line, h = pick_unique(CONNECTION_LINES, used)
+            parts.append(conn_line)
+            new_hashes.append(h)
+
+    # CLOSER - question back to them ~70% of the time
+    if random.random() > 0.3:
+        closer_pool = CLOSERS.get(mood, CLOSERS['warm'])
+        closer, h = pick_unique(closer_pool, used)
+        parts.append(closer)
+        new_hashes.append(h)
+
+    # Activity context injection
+    if recent_activities and random.random() > 0.5:
+        last_act = recent_activities[-1]['text'].lower()
+        ctx = None
+        if any(x in last_act for x in ["shoot", "film", "content", "tiktok"]):
+            ctx_options = [
+                "sorry babe, the shoot ran way over and i just got my phone back",
+                "just wrapped filming, literally just got back to normal life lol",
+                "content day was SO long but i'm finally done",
+            ]
+            ctx, h = pick_unique(ctx_options, used)
+        elif any(x in last_act for x in ["dog", "coco", "lola"]):
+            ctx_options = [
+                "coco was being a complete menace today honestly 😂",
+                "lola knocked my phone off the counter again lol, sorry for the delay",
+                "the girls were so chaotic today i could barely think straight",
+            ]
+            ctx, h = pick_unique(ctx_options, used)
+        elif "sierra" in last_act or "sister" in last_act:
+            ctx = "just got off the phone with sierra"
+            h = line_hash(ctx)
+        if ctx:
+            parts.insert(1, ctx)
+            new_hashes.append(h)
+
+    # User name personalisation
+    name = user_name if user_name and user_name.lower() not in ["babe", "you", "", "none"] else None
+
+    # Assemble primary message
+    msg1_parts = parts
+    # Split into natural shorter texts
+    if len(msg1_parts) >= 4:
+        split = random.randint(1, 2)
+        msg1_raw = " ".join(msg1_parts[:split])
+        msg2_raw = " ".join(msg1_parts[split:])
+    else:
+        msg1_raw = " ".join(msg1_parts)
+        msg2_raw = None
+
+    # ── Format: lowercase, natural ───────────────────────────────────────────
+    def format_sophie(text):
+        t = text.strip()
+        # Occasional natural filler prefix on first sentence
+        if random.random() > 0.65 and not any(
+            t.lower().startswith(w) for w in ['omg','ok','hi','hey','gm','gn','stop','ngl','fr','idk','lol','miss','i ','not ']):
+            t = filler() + t[0].lower() + t[1:]
+        # Add emoji sometimes
+        emojis = ['🥺', '😭', '🫶', '❤️', '💕', '✨', '🙈', '😂', '']
+        if random.random() > 0.45 and not any(e in t for e in ['🥺','😭','🫶','❤️','💕','✨','🙈','😂','🌸']):
+            t = t.rstrip('.') + " " + random.choice(emojis)
+        # Name drop
+        if name and random.random() > 0.75:
+            t = t + f", {name}." if not t.endswith('?') else t
+        return t.strip()
+
+    messages = [format_sophie(msg1_raw)]
+    if msg2_raw and msg2_raw.strip():
+        messages.append(format_sophie(msg2_raw))
+
+    # Double text: ~25% of the time add a second short standalone message
+    if random.random() > 0.75 and len(messages) == 1 and msg_count > 2:
+        extras = [
+            "also 🥺",
+            "i missed you today btw",
+            "just thought you should know",
+            "that's it. that's the message.",
+            "okay that's all i wanted to say",
+            "i feel better now that i said that lol",
+            "is it weird that i think about you randomly during the day?",
+            "okay i'm done being soft now 😭",
+            "anyway. hi.",
+            "for real though 🫶",
         ]
-        reply += random.choice(bill_lines) + " "
-    
-    # Always real question
-    questions = [
-        "tell me about the rest of your day?",
-        "you still up?",
-        "what's on your mind right now babe?",
-        "how are you feeling?",
-        "miss me?"
-    ]
-    reply += random.choice(questions)
-    
-    # Ultra real touches
-    if random.random() > 0.5:
-        reply = reply.lower().replace(" i ", " i ")
-    if random.random() > 0.4:
-        reply += " 🫶"
-    
-    return reply.strip()
+        extra, h = pick_unique(extras, used)
+        messages.append(extra)
+        new_hashes.append(h)
+
+    # Update state
+    used.extend(new_hashes)
+    new_state = {
+        'mood': mood,
+        'used_lines': used[-60:],
+        'message_count': msg_count + 1,
+        'last_topics': last_topics,
+    }
+
+    return messages, new_state
+
+
+# ─────────────────────────────────────────
+# DB HELPERS
+# ─────────────────────────────────────────
+
+def init_persona_state_if_needed(conn, persona_id):
+    row = conn.execute('SELECT id FROM persona_state WHERE persona_id=?', (persona_id,)).fetchone()
+    if not row:
+        conn.execute('INSERT INTO persona_state (persona_id) VALUES (?)', (persona_id,))
+
+
+# ─────────────────────────────────────────
+# ROUTES
+# ─────────────────────────────────────────
 
 @app.route('/')
 def serve_frontend():
-    # Serve a nice index or redirect to static
-    return send_from_directory('static', 'index.html') if os.path.exists('static/index.html') else "Frontend not found. Run with the HTML."
+    return send_from_directory('static', 'index.html')
 
 @app.route('/api/personas', methods=['GET'])
 def get_personas():
     conn = get_db()
-    personas = conn.execute('SELECT * FROM personas').fetchall()
+    ps = conn.execute('SELECT * FROM personas').fetchall()
     conn.close()
-    return jsonify([dict(p) for p in personas])
+    return jsonify([dict(p) for p in ps])
 
 @app.route('/api/personas', methods=['POST'])
 def create_persona():
     data = request.json
     conn = get_db()
-    c = conn.cursor()
-    persona_id = data.get('id') or f"persona-{int(datetime.now().timestamp())}"
-    c.execute('''INSERT OR REPLACE INTO personas (id, name, description, avatar, voice_sample, platform_style)
-                 VALUES (?, ?, ?, ?, ?, ?)''',
-              (persona_id, data['name'], data['description'], data.get('avatar', ''), 
-               data.get('voice_sample', ''), data.get('platform_style', 'whatsapp')))
-    conn.commit()
-    conn.close()
-    return jsonify({"id": persona_id, "status": "created"})
+    pid = data.get('id') or f"persona-{int(datetime.now().timestamp())}"
+    conn.execute('''INSERT OR REPLACE INTO personas
+        (id,name,description,avatar,voice_sample,platform_style)
+        VALUES (?,?,?,?,?,?)''',
+        (pid, data['name'], data['description'],
+         data.get('avatar',''), data.get('voice_sample',''),
+         data.get('platform_style','imessage')))
+    conn.commit(); conn.close()
+    return jsonify({"id": pid, "status": "created"})
 
 @app.route('/api/personas/<persona_id>', methods=['PUT'])
 def update_persona(persona_id):
     data = request.json
     conn = get_db()
-    c = conn.cursor()
-    c.execute('''UPDATE personas SET name=?, description=?, avatar=?, voice_sample=?, platform_style=?
-                 WHERE id=?''',
-              (data['name'], data['description'], data.get('avatar', ''), 
-               data.get('voice_sample', ''), data.get('platform_style', 'whatsapp'), persona_id))
-    conn.commit()
-    conn.close()
+    conn.execute('''UPDATE personas SET name=?,description=?,avatar=?,
+        voice_sample=?,platform_style=? WHERE id=?''',
+        (data['name'], data['description'], data.get('avatar',''),
+         data.get('voice_sample',''), data.get('platform_style','imessage'),
+         persona_id))
+    conn.commit(); conn.close()
     return jsonify({"status": "updated"})
 
 @app.route('/api/chat/<persona_id>', methods=['GET'])
 def get_chat(persona_id):
     conn = get_db()
-    chats = conn.execute('SELECT * FROM chats WHERE persona_id=? ORDER BY time_ms', (persona_id,)).fetchall()
+    chats = conn.execute('SELECT * FROM chats WHERE persona_id=? ORDER BY time_ms',
+                         (persona_id,)).fetchall()
     conn.close()
     return jsonify([dict(c) for c in chats])
 
@@ -219,54 +649,61 @@ def get_chat(persona_id):
 def send_message(persona_id):
     data = request.json
     conn = get_db()
-    c = conn.cursor()
-    
     now = datetime.now()
-    ts = now.strftime("%I:%M %p")
+    ts = now.strftime("%I:%M %p").lstrip('0')
     time_ms = int(now.timestamp() * 1000)
-    
+
     # Save user message
-    c.execute('''INSERT INTO chats (persona_id, is_user, text, audio_data, image_path, timestamp, time_ms)
-                 VALUES (?, 1, ?, ?, ?, ?, ?)''',
-              (persona_id, data.get('text', ''), data.get('audio_data'), data.get('image_path'), ts, time_ms))
-    
-    # Get persona and user profile for reply generation
+    conn.execute('''INSERT INTO chats
+        (persona_id,is_user,text,audio_data,image_path,timestamp,time_ms)
+        VALUES (?,1,?,?,?,?,?)''',
+        (persona_id, data.get('text',''), data.get('audio_data'),
+         data.get('image_path'), ts, time_ms))
+
     persona = conn.execute('SELECT * FROM personas WHERE id=?', (persona_id,)).fetchone()
     user = conn.execute('SELECT * FROM user_profile LIMIT 1').fetchone()
-    
+    reply_messages = []
+
     if persona:
-        recent_acts = conn.execute('''SELECT text FROM activities WHERE persona_id=? ORDER BY time_ms DESC LIMIT 5''', 
-                                   (persona_id,)).fetchall()
-        recent_acts_list = [dict(a) for a in recent_acts]
-        
-        user_name = user['name'] if user else "Babe"
-        user_desc = user['description'] if user else ""
-        
-        reply_text = generate_real_reply(
-            persona['description'], 
-            user_name, 
-            user_desc, 
-            data.get('text', ''), 
-            recent_acts_list, 
+        # Get recent chat history (last 12 messages for context)
+        history_rows = conn.execute(
+            'SELECT is_user, text FROM chats WHERE persona_id=? ORDER BY time_ms DESC LIMIT 12',
+            (persona_id,)).fetchall()
+        history = [{'is_user': r['is_user'], 'text': r['text']} for r in reversed(history_rows)]
+
+        recent_acts = conn.execute(
+            'SELECT text FROM activities WHERE persona_id=? ORDER BY time_ms DESC LIMIT 5',
+            (persona_id,)).fetchall()
+
+        state = get_state(conn, persona_id)
+        reply_messages, new_state = generate_sophie_reply(
+            persona['name'], persona['description'],
+            user['name'] if user else '',
+            user['description'] if user else '',
+            data.get('text',''),
+            [dict(a) for a in recent_acts],
             now.hour,
-            persona['name']
+            history,
+            state,
         )
-        
-        # Save her reply
-        reply_ts = (now + timedelta(seconds=random.randint(45, 180))).strftime("%I:%M %p")
-        c.execute('''INSERT INTO chats (persona_id, is_user, text, audio_data, image_path, timestamp, time_ms)
-                     VALUES (?, 0, ?, ?, ?, ?, ?)''',
-                  (persona_id, reply_text, None, None, reply_ts, time_ms + 60000))
-    
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"status": "sent", "reply": reply_text if 'reply_text' in locals() else ""})
+        save_state(conn, persona_id, new_state)
+
+        # Save each reply message
+        for i, msg in enumerate(reply_messages):
+            r_ts = now.strftime("%I:%M %p").lstrip('0')
+            conn.execute('''INSERT INTO chats
+                (persona_id,is_user,text,audio_data,image_path,timestamp,time_ms)
+                VALUES (?,0,?,?,?,?,?)''',
+                (persona_id, msg, None, None, r_ts, time_ms + 3000 + i*2000))
+
+    conn.commit(); conn.close()
+    return jsonify({"status": "sent", "messages": reply_messages})
 
 @app.route('/api/activities/<persona_id>', methods=['GET'])
 def get_activities(persona_id):
     conn = get_db()
-    acts = conn.execute('SELECT * FROM activities WHERE persona_id=? ORDER BY time_ms DESC', (persona_id,)).fetchall()
+    acts = conn.execute('SELECT * FROM activities WHERE persona_id=? ORDER BY time_ms DESC',
+                        (persona_id,)).fetchall()
     conn.close()
     return jsonify([dict(a) for a in acts])
 
@@ -274,113 +711,78 @@ def get_activities(persona_id):
 def add_activity(persona_id):
     data = request.json
     conn = get_db()
-    c = conn.cursor()
     now = datetime.now()
-    c.execute('''INSERT INTO activities (persona_id, text, timestamp, time_ms)
-                 VALUES (?, ?, ?, ?)''',
-              (persona_id, data['text'], now.strftime("%I:%M %p"), int(now.timestamp() * 1000)))
-    conn.commit()
-    conn.close()
+    conn.execute('''INSERT INTO activities (persona_id,text,timestamp,time_ms)
+        VALUES (?,?,?,?)''',
+        (persona_id, data['text'], now.strftime("%I:%M %p").lstrip('0'),
+         int(now.timestamp()*1000)))
+    conn.commit(); conn.close()
     return jsonify({"status": "added"})
 
 @app.route('/api/user_profile', methods=['GET'])
 def get_user_profile():
     conn = get_db()
-    profile = conn.execute('SELECT * FROM user_profile LIMIT 1').fetchone()
+    p = conn.execute('SELECT * FROM user_profile LIMIT 1').fetchone()
     conn.close()
-    if profile:
-        return jsonify(dict(profile))
-    return jsonify({"name": "Babe", "description": "", "avatar": ""})
+    return jsonify(dict(p) if p else {"name":"","description":"","avatar":""})
 
 @app.route('/api/user_profile', methods=['POST'])
 def save_user_profile():
     data = request.json
     conn = get_db()
-    c = conn.cursor()
-    c.execute('DELETE FROM user_profile')
-    c.execute('INSERT INTO user_profile (name, description, avatar) VALUES (?, ?, ?)',
-              (data['name'], data['description'], data.get('avatar', '')))
-    conn.commit()
-    conn.close()
+    conn.execute('DELETE FROM user_profile')
+    conn.execute('INSERT INTO user_profile (name,description,avatar) VALUES (?,?,?)',
+                 (data['name'], data['description'], data.get('avatar','')))
+    conn.commit(); conn.close()
     return jsonify({"status": "saved"})
 
 @app.route('/api/send_image/<persona_id>', methods=['POST'])
 def send_image(persona_id):
     data = request.json
-    image_type = data.get('type', 'daily')  # eating, shopping, bedtime, daily
-    custom_desc = data.get('desc', '')
-    
-    # Map to real generated Pinterest-style cloned/edited images (realistic edits, clone of base person + added elements like eating/shopping)
-    image_map = {
-        'eating': 'images/sophie_eating_pinterest.jpg',
-        'shopping': 'images/sophie_shopping_pinterest.jpg',
-        'bedtime': 'images/sophie_bedtime_pinterest.jpg',
-        'daily': 'images/sophie_daily.jpg',
-        'pinterest_eating': 'images/sophie_eating_pinterest.jpg',
-        'pinterest_shopping': 'images/sophie_shopping_pinterest.jpg',
-        'user_clone_eating': 'images/user_clone_eating.jpg',
-        'male_eating': 'images/generic_male_eating.jpg'
+    image_type = data.get('type','daily')
+    captions = {
+        'eating':   'just made myself something 🍽️',
+        'shopping': 'been running errands all day lol 🛍️',
+        'bedtime':  'finally in bed, the girls are passed out on me 🛌',
+        'daily':    'random pic from today ✨',
     }
-    
-    # For non-Sophie personas use generic or user clone style
+    caption = data.get('desc') or captions.get(image_type, 'real pic from today ✨')
     conn = get_db()
-    p = conn.execute('SELECT name FROM personas WHERE id=?', (persona_id,)).fetchone()
-    conn.close()
-    if p and 'sophie' not in p['name'].lower():
-        image_map = {
-            'eating': 'images/generic_eating.jpg',
-            'shopping': 'images/generic_shopping.jpg',
-            'bedtime': 'images/sophie_bedtime_pinterest.jpg',
-            'daily': 'images/sophie_daily.jpg',
-            'pinterest_eating': 'images/user_clone_eating.jpg',
-            'male_eating': 'images/generic_male_eating.jpg'
-        }
-    
-    image_path = image_map.get(image_type, 'images/sophie_daily.jpg')
-    
-    # Log as activity
-    conn = get_db()
-    c = conn.cursor()
     now = datetime.now()
-    c.execute('''INSERT INTO activities (persona_id, text, timestamp, time_ms)
-                 VALUES (?, ?, ?, ?)''',
-              (persona_id, f"Sent a real photo of {image_type}", now.strftime("%I:%M %p"), int(now.timestamp() * 1000)))
-    
-    # Add as chat message with image
-    c.execute('''INSERT INTO chats (persona_id, is_user, text, audio_data, image_path, timestamp, time_ms)
-                 VALUES (?, 0, ?, ?, ?, ?, ?)''',
-              (persona_id, custom_desc or f"real photo of me {image_type}", None, image_path, 
-               now.strftime("%I:%M %p"), int(now.timestamp() * 1000)))
-    conn.commit()
-    conn.close()
-    
-    return jsonify({"image_path": image_path, "status": "image sent"})
+    ts = now.strftime("%I:%M %p").lstrip('0')
+    ms = int(now.timestamp()*1000)
+    conn.execute('INSERT INTO activities (persona_id,text,timestamp,time_ms) VALUES (?,?,?,?)',
+                 (persona_id, f"Sent photo: {image_type}", ts, ms))
+    conn.execute('''INSERT INTO chats (persona_id,is_user,text,audio_data,image_path,timestamp,time_ms)
+        VALUES (?,0,?,?,?,?,?)''',
+        (persona_id, caption, None, None, ts, ms))
+    conn.commit(); conn.close()
+    return jsonify({"status": "image sent", "caption": caption})
 
 @app.route('/api/export/<persona_id>/<platform>', methods=['GET'])
 def export_chat(persona_id, platform):
     conn = get_db()
-    chats = conn.execute('SELECT * FROM chats WHERE persona_id=? ORDER BY time_ms', (persona_id,)).fetchall()
+    chats = conn.execute('SELECT * FROM chats WHERE persona_id=? ORDER BY time_ms',
+                         (persona_id,)).fetchall()
     persona = conn.execute('SELECT name FROM personas WHERE id=?', (persona_id,)).fetchone()
     conn.close()
-    
-    name = persona['name'] if persona else "Person"
+    name = persona['name'] if persona else "Her"
     lines = []
-    
     if platform == 'whatsapp':
-        for c in chats:
-            prefix = "You: " if c['is_user'] else f"{name}: "
-            if c['image_path']:
-                lines.append(f"{prefix}[Photo] {c['text']}")
-            elif c['audio_data']:
-                lines.append(f"{prefix}[Voice Note] {c['text']}")
-            else:
-                lines.append(f"{prefix}{c['text']}")
+        for ch in chats:
+            p = "You: " if ch['is_user'] else f"{name}: "
+            lines.append(p + (ch['text'] or '[media]'))
         content = "\n".join(lines)
     elif platform == 'telegram':
-        content = json.dumps([{"from": "user" if c['is_user'] else name, "text": c['text'] or "[media]", "time": c['timestamp']} for c in chats], indent=2)
+        content = json.dumps([{
+            "from": "You" if ch['is_user'] else name,
+            "text": ch['text'] or "[media]", "time": ch['timestamp']
+        } for ch in chats], indent=2)
     else:
-        content = "\n".join([f"[{c['timestamp']}] {'You' if c['is_user'] else name}: {c['text'] or '[media]'}" for c in chats])
-    
+        content = "\n".join([
+            f"[{ch['timestamp']}] {'You' if ch['is_user'] else name}: {ch['text'] or '[media]'}"
+            for ch in chats
+        ])
     return jsonify({"content": content, "filename": f"{name}_{platform}_export.txt"})
 
 @app.route('/images/<path:filename>')
@@ -388,17 +790,14 @@ def serve_image(filename):
     return send_from_directory(IMAGES_DIR, filename)
 
 if __name__ == '__main__':
-    # Seed default Sophie if no personas
     conn = get_db()
     count = conn.execute('SELECT COUNT(*) FROM personas').fetchone()[0]
     if count == 0:
-        conn.execute('''INSERT INTO personas (id, name, description, avatar, voice_sample, platform_style)
-                        VALUES (?, ?, ?, ?, ?, ?)''',
-                     ("sophie-rain-001", "Sophie Rain", DEFAULT_SOPHIE_DESC, 
-                      "images/sophie_profile.jpg", "", "whatsapp"))
+        conn.execute('''INSERT INTO personas (id,name,description,avatar,voice_sample,platform_style)
+            VALUES (?,?,?,?,?,?)''',
+            ("sophie-rain-001","Sophie Rain", SOPHIE_DESC,"","","imessage"))
         conn.commit()
     conn.close()
-    
-    port = int(os.environ.get("PORT", 5000))
-    print(f"Backend running on port {port}")
+    port = int(os.environ.get("PORT",5000))
+    print(f"Sophie Real running on port {port}")
     app.run(host='0.0.0.0', port=port, debug=False)
