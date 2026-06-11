@@ -49,6 +49,132 @@ init_db()
 # SOPHIE RAIN DEEP PERSONALITY ENGINE
 # ─────────────────────────────────────────
 
+# ─────────────────────────────────────────
+# REAL PHOTO GALLERY — Unsplash CDN (free, no key)
+# ─────────────────────────────────────────
+# Format: https://images.unsplash.com/photo-{ID}?w=400&h=500&fit=crop&auto=format&q=80
+_U = "https://images.unsplash.com/photo-"
+_P = "?w=400&h=500&fit=crop&auto=format&q=80"
+
+SOPHIE_PHOTOS = {
+    'eating': [
+        _U+"1567620905732-2d1ec7ab7445"+_P,   # pancakes breakfast
+        _U+"1565299624946-b28f40a0ae38"+_P,   # pizza slice
+        _U+"1540189549336-e6e99c3679fe"+_P,   # colorful bowl
+        _U+"1484723091739-30a097e8f929"+_P,   # avocado toast
+        _U+"1504674900247-0877df9cc836"+_P,   # food overhead flat
+        _U+"1563379926898-05f4575a45d8"+_P,   # pasta dinner
+        _U+"1568901346375-23c9450c58cd"+_P,   # gourmet burger
+        _U+"1551218808-94e220e084d2"+_P,      # sushi
+        _U+"1579954115545-a95591f28bfc"+_P,   # dessert plate
+        _U+"1571091718767-18b5b1457add"+_P,   # sandwich
+        _U+"1482049016688-2d3e1291311a"+_P,   # fried eggs toast
+        _U+"1476224203421-74177f19a8de"+_P,   # ramen bowl
+        _U+"1512058564366-18510be2db19"+_P,   # tacos
+        _U+"1504754524776-8f4f37304e85"+_P,   # acai bowl
+        _U+"1511690743698-d9d85f814034"+_P,   # grilled salmon
+        _U+"1432139555190-58524dae6a55"+_P,   # fruit bowl
+        _U+"1600628421055-4d30de868b8f"+_P,   # matcha latte art
+        _U+"1461023058943-07fcbe16d735"+_P,   # latte coffee
+        _U+"1495474472287-4d71bcdd2085"+_P,   # morning coffee mug
+    ],
+    'shopping': [
+        _U+"1483985988355-763728e1935b"+_P,   # shopping bags colorful
+        _U+"1441984904996-e0b6ba687e04"+_P,   # clothing store
+        _U+"1607082348824-0a96f2a4b9da"+_P,   # fashion shopping
+        _U+"1472851294608-062f824d29cc"+_P,   # shopping street
+        _U+"1555529669-e69e7aa0ba9a"+_P,      # store window
+        _U+"1467453678174-768ec283e530"+_P,   # shoes shopping
+        _U+"1490481651871-ab68de25d43d"+_P,   # fashion outfit
+    ],
+    'bedtime': [
+        _U+"1484154218962-a197022b5858"+_P,   # cozy bedroom aesthetic
+        _U+"1560185893-a55cbc8c57e8"+_P,      # cozy bed pillows
+        _U+"1519710164239-da123dc03ef4"+_P,   # candle night cozy
+        _U+"1578662996442-48f60103fc96"+_P,   # pillow close up
+        _U+"1516912481808-3406841bd33c"+_P,   # night lamp warm light
+        _U+"1522771739844-6a9a6b0f4177"+_P,   # bed aerial cozy
+        _U+"1501004318641-b39e6451bec6"+_P,   # bedroom warm tones
+    ],
+    'dogs': [
+        _U+"1587300003388-59208cc962cb"+_P,   # cute dog face close
+        _U+"1518717758536-85ae29035b6d"+_P,   # small dog sitting
+        _U+"1543466835-00a7907e9de1"+_P,      # dog portrait
+        _U+"1534361960057-19f073c0c6f1"+_P,   # dog brown eyes
+        _U+"1548199973-03cce0bbc87b"+_P,      # two dogs together
+        _U+"1587300003388-59208cc962cb"+_P,   # dog closeup repeat
+        _U+"1477884213360-7e9d7dcc1e48"+_P,   # dog on couch
+        _U+"1450778869180-41d0601e046e"+_P,   # dog looking up cute
+    ],
+    'daily': [
+        _U+"1506905925346-21bda4d32df4"+_P,   # nature walk path
+        _U+"1493711662062-fa541aff3b66"+_P,   # miami beach palm
+        _U+"1519125323398-675f0ddb6308"+_P,   # city street lifestyle
+        _U+"1501139083538-0139583c060f"+_P,   # sunlight window cozy
+        _U+"1545205597-3d9d02c29597"+_P,      # aesthetic moment
+        _U+"1499781350541-7783f6c6a0c8"+_P,   # sunset golden hour
+        _U+"1472214103451-9374f9f3e0c1"+_P,   # outdoor lifestyle
+        _U+"1470770841072-f978cf4d5268"+_P,   # ocean beach sunset
+        _U+"1500964757637-c20e8e02ef37"+_P,   # outdoor nature
+        _U+"1516414447565-b14be0adf13a"+_P,   # city lifestyle
+    ],
+    'pokemon': [
+        _U+"1606041008023-472dfb5e530f"+_P,   # phone gaming screen
+        _U+"1493711662062-fa541aff3b66"+_P,   # outdoor walk phone
+        _U+"1519125323398-675f0ddb6308"+_P,   # street walk lifestyle
+    ],
+}
+
+SOPHIE_PHOTO_CAPTIONS = {
+    'eating': [
+        "okay i ate WAY too much but zero regrets",
+        "this was so good i think about it constantly now",
+        "made myself something real for once lol",
+        "the craving won. obviously.",
+        "dinner tonight and it did NOT disappoint",
+        "okay why does food hit different when you're actually hungry",
+        "random craving fully satisfied",
+        "this is what healing looks like",
+    ],
+    'shopping': [
+        "errands day got slightly out of hand lol",
+        "i said i was just browsing 😭",
+        "okay it's not as bad as it looks",
+        "treat yourself they said",
+        "everything was on sale. technically responsible.",
+    ],
+    'bedtime': [
+        "okay finally in bed. the girls are already knocked out on me",
+        "this is where i live now",
+        "bedroom hours 🕯️ do not disturb lol",
+        "coco claimed my pillow again so i'm sleeping on the edge",
+        "cozy hours only",
+        "the only place i want to be rn honestly",
+    ],
+    'dogs': [
+        "they literally never leave me alone and i love it",
+        "coco and lola said no personal space allowed",
+        "these two are my whole life i'm not even dramatic",
+        "they were being chaotic and then fell asleep in 3 seconds",
+        "lola is judging me and i deserve it honestly",
+        "they just looked at me like this and i melted",
+    ],
+    'daily': [
+        "random pic from today ✨",
+        "miami is so beautiful sometimes i forget to complain lol",
+        "just existing today",
+        "went for a walk and remembered i love being outside",
+        "good day honestly. felt different.",
+        "little things 🌅",
+        "needed fresh air and got it",
+    ],
+    'pokemon': [
+        "pokémon go made me walk 3 miles today and i'm not even mad",
+        "caught something good on my walk today 🎮",
+        "daily walk courtesy of pokémon go lol",
+    ],
+}
+
 SOPHIE_DESC = """21-year-old mixed Filipino-white from Miami. Co-founder of Bop House.
 TikTok and Instagram star with millions of followers. OnlyFans creator.
 Two dachshunds Coco and Lola — total obsession. Pokémon Go addict.
@@ -696,6 +822,32 @@ def send_message(persona_id):
                 VALUES (?,0,?,?,?,?,?)''',
                 (persona_id, msg, None, None, r_ts, time_ms + 3000 + i*2000))
 
+        # Natural photo: ~20% chance Sophie sends a relevant photo after her text
+        msg_count = new_state.get('message_count', 0)
+        user_text_lower = data.get('text', '').lower()
+        combined = ' '.join(reply_messages).lower()
+        if msg_count > 1 and random.random() > 0.8:
+            # Pick category based on what she mentioned
+            nat_type = 'daily'
+            if any(w in combined for w in ['eat', 'food', 'hunger', 'pizza', 'ramen', 'sushi', 'cook', 'dinner', 'lunch', 'breakfast', 'matcha', 'coffee', 'craving']):
+                nat_type = 'eating'
+            elif any(w in combined for w in ['coco', 'lola', 'dog', 'girl', 'pup']):
+                nat_type = 'dogs'
+            elif any(w in combined for w in ['bed', 'sleep', 'cozy', 'candle', 'pass out', 'tired']):
+                nat_type = 'bedtime'
+            elif any(w in combined for w in ['pokemon', 'pokémon', 'shiny', 'walk', 'raid']):
+                nat_type = 'pokemon'
+            elif any(w in combined for w in ['shop', 'errand', 'bought', 'store']):
+                nat_type = 'shopping'
+
+            photo_url = random.choice(SOPHIE_PHOTOS.get(nat_type, SOPHIE_PHOTOS['daily']))
+            photo_cap = random.choice(SOPHIE_PHOTO_CAPTIONS.get(nat_type, SOPHIE_PHOTO_CAPTIONS['daily']))
+            photo_ts = now.strftime("%I:%M %p").lstrip('0')
+            photo_ms = time_ms + 3000 + len(reply_messages) * 2000 + 1500
+            conn.execute('''INSERT INTO chats (persona_id,is_user,text,audio_data,image_path,timestamp,time_ms)
+                VALUES (?,0,?,?,?,?,?)''',
+                (persona_id, photo_cap, None, photo_url, photo_ts, photo_ms))
+
     conn.commit(); conn.close()
     return jsonify({"status": "sent", "messages": reply_messages})
 
@@ -739,25 +891,29 @@ def save_user_profile():
 @app.route('/api/send_image/<persona_id>', methods=['POST'])
 def send_image(persona_id):
     data = request.json
-    image_type = data.get('type','daily')
-    captions = {
-        'eating':   'just made myself something 🍽️',
-        'shopping': 'been running errands all day lol 🛍️',
-        'bedtime':  'finally in bed, the girls are passed out on me 🛌',
-        'daily':    'random pic from today ✨',
-    }
-    caption = data.get('desc') or captions.get(image_type, 'real pic from today ✨')
+    image_type = data.get('type', 'daily')
+
+    # Pick a real photo URL from the gallery
+    pool = SOPHIE_PHOTOS.get(image_type, SOPHIE_PHOTOS['daily'])
+    image_url = random.choice(pool)
+
+    # Pick a real caption
+    cap_pool = SOPHIE_PHOTO_CAPTIONS.get(image_type, SOPHIE_PHOTO_CAPTIONS['daily'])
+    caption = data.get('desc') or random.choice(cap_pool)
+
     conn = get_db()
     now = datetime.now()
     ts = now.strftime("%I:%M %p").lstrip('0')
-    ms = int(now.timestamp()*1000)
+    ms = int(now.timestamp() * 1000)
+
     conn.execute('INSERT INTO activities (persona_id,text,timestamp,time_ms) VALUES (?,?,?,?)',
                  (persona_id, f"Sent photo: {image_type}", ts, ms))
+    # Save with real image_path so frontend shows the actual photo
     conn.execute('''INSERT INTO chats (persona_id,is_user,text,audio_data,image_path,timestamp,time_ms)
         VALUES (?,0,?,?,?,?,?)''',
-        (persona_id, caption, None, None, ts, ms))
+        (persona_id, caption, None, image_url, ts, ms))
     conn.commit(); conn.close()
-    return jsonify({"status": "image sent", "caption": caption})
+    return jsonify({"status": "image sent", "caption": caption, "image_url": image_url})
 
 @app.route('/api/export/<persona_id>/<platform>', methods=['GET'])
 def export_chat(persona_id, platform):
