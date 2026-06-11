@@ -97,13 +97,24 @@ html,body{height:100%;background:#000;font-family:-apple-system,BlinkMacSystemFo
 .r .bbl-time{text-align:left}
 .bbl-tick{opacity:.65}
 
-/* photo bubble */
-.photo-bbl{background:#1c1c1e;border-radius:20px 20px 20px 6px;overflow:hidden;max-width:220px}
-.photo-bbl img{width:100%;display:block;border-radius:16px}
-.photo-bbl .photo-cap{font-size:13px;color:#fff;padding:8px 12px;line-height:1.35}
-.photo-bbl .bbl-time{padding:0 12px 8px;font-size:10px;opacity:.5}
+/* photo bubble — real image */
+.photo-bbl{background:#1c1c1e;border-radius:20px 20px 20px 6px;overflow:hidden;max-width:240px;cursor:pointer;position:relative}
+.photo-bbl img{width:100%;display:block;max-height:320px;object-fit:cover;border-radius:0}
+.photo-bbl .photo-overlay{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.7));padding:22px 12px 10px}
+.photo-bbl .photo-cap{font-size:13px;color:#fff;line-height:1.35;font-weight:500}
+.photo-bbl .bbl-time{font-size:10px;color:rgba(255,255,255,.6);margin-top:3px;display:block}
+.photo-bbl .photo-loading{width:240px;height:220px;display:flex;align-items:center;justify-content:center;background:#111;color:#636366;font-size:13px;flex-direction:column;gap:8px}
+.photo-bbl .photo-loading i{font-size:24px;animation:spin 1s linear infinite}
+@keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
 
-/* emoji-only photo (when no image file) */
+/* lightbox */
+#lightbox{position:fixed;inset:0;background:rgba(0,0,0,.95);z-index:900;display:none;align-items:center;justify-content:center;flex-direction:column;gap:12px}
+#lightbox.on{display:flex}
+#lightbox img{max-width:96vw;max-height:80dvh;object-fit:contain;border-radius:12px}
+#lightbox .lb-cap{color:#fff;font-size:14px;text-align:center;padding:0 24px;opacity:.8}
+#lightbox-close{position:absolute;top:16px;right:16px;background:#2c2c2e;border:none;color:#fff;width:36px;height:36px;border-radius:50%;cursor:pointer;font-size:18px;display:flex;align-items:center;justify-content:center}
+
+/* emoji-only photo fallback */
 .emoji-photo{background:#1c1c1e;border-radius:20px 20px 20px 6px;padding:14px 16px;max-width:220px}
 .emoji-photo .ep-icon{font-size:38px;display:block;margin-bottom:6px}
 .emoji-photo .ep-cap{font-size:13px;color:#fff;line-height:1.4}
@@ -203,6 +214,13 @@ html,body{height:100%;background:#000;font-family:-apple-system,BlinkMacSystemFo
   <div id="rec-timer">0:00</div>
   <button class="rec-stop" onclick="stopRec()">Stop & Send</button>
   <button class="rec-cancel" onclick="cancelRec()">Cancel</button>
+</div>
+
+<!-- lightbox -->
+<div id="lightbox" onclick="closeLightbox()">
+  <button id="lightbox-close" onclick="closeLightbox()"><i class="fa-solid fa-xmark"></i></button>
+  <img id="lightbox-img" src="" alt="">
+  <div class="lb-cap" id="lightbox-cap"></div>
 </div>
 
 <!-- ════════════ LIST VIEW ════════════ -->
@@ -402,8 +420,22 @@ html,body{height:100%;background:#000;font-family:-apple-system,BlinkMacSystemFo
       <div class="mrow" onclick="sendPhoto('eating')">
         <div class="mico2">🍽️</div>
         <div>
-          <div style="color:#fff;font-size:14px;font-weight:600">Eating</div>
+          <div style="color:#fff;font-size:14px;font-weight:600">Food & Drinks</div>
           <div style="color:#636366;font-size:12px">Real food moment</div>
+        </div>
+      </div>
+      <div class="mrow" onclick="sendPhoto('dogs')">
+        <div class="mico2">🐶</div>
+        <div>
+          <div style="color:#fff;font-size:14px;font-weight:600">Coco & Lola</div>
+          <div style="color:#636366;font-size:12px">Her dachshund girls</div>
+        </div>
+      </div>
+      <div class="mrow" onclick="sendPhoto('bedtime')">
+        <div class="mico2">🛌</div>
+        <div>
+          <div style="color:#fff;font-size:14px;font-weight:600">Bedtime</div>
+          <div style="color:#636366;font-size:12px">Cozy night vibe</div>
         </div>
       </div>
       <div class="mrow" onclick="sendPhoto('shopping')">
@@ -413,18 +445,18 @@ html,body{height:100%;background:#000;font-family:-apple-system,BlinkMacSystemFo
           <div style="color:#636366;font-size:12px">Out in the city</div>
         </div>
       </div>
-      <div class="mrow" onclick="sendPhoto('bedtime')">
-        <div class="mico2">🛌</div>
-        <div>
-          <div style="color:#fff;font-size:14px;font-weight:600">Bedtime</div>
-          <div style="color:#636366;font-size:12px">Dogs & cozy night</div>
-        </div>
-      </div>
       <div class="mrow" onclick="sendPhoto('daily')">
         <div class="mico2">✨</div>
         <div>
-          <div style="color:#fff;font-size:14px;font-weight:600">Daily life</div>
+          <div style="color:#fff;font-size:14px;font-weight:600">Daily Life</div>
           <div style="color:#636366;font-size:12px">Random real shot</div>
+        </div>
+      </div>
+      <div class="mrow" onclick="sendPhoto('pokemon')">
+        <div class="mico2">🎮</div>
+        <div>
+          <div style="color:#fff;font-size:14px;font-weight:600">Pokémon Go Walk</div>
+          <div style="color:#636366;font-size:12px">Out catching raids</div>
         </div>
       </div>
     </div>
@@ -706,13 +738,30 @@ async function renderMsgs(){
       row.className=`msg-row ${sent?'s':'r'}`;
 
       if(m.image_path){
-        // Try to load image — if it exists, show it; otherwise show emoji card
+        const capText = esc(m.text||'');
         row.innerHTML=`
-          <div class="photo-bbl">
-            <img src="${m.image_path}" onerror="this.parentElement.innerHTML=imgFallback('${esc(m.text||'📷 Photo')}','${m.timestamp}')" style="border-radius:16px;max-width:220px;width:100%;display:block">
-            <div class="photo-cap">${esc(m.text||'')}</div>
-            <span class="bbl-time" style="padding:0 12px 8px;display:block">${m.timestamp}</span>
+          <div class="photo-bbl" onclick="openLightbox('${m.image_path}','${capText}')">
+            <div class="photo-loading" id="pl-${m.id||Math.random().toString(36).slice(2)}">
+              <i class="fa-solid fa-circle-notch"></i>
+              <span>Loading photo…</span>
+            </div>
           </div>`;
+        // Load image asynchronously so spinner shows first
+        const pbl = row.querySelector('.photo-bbl');
+        const plDiv = pbl.querySelector('.photo-loading');
+        const img = new Image();
+        img.onload = ()=>{
+          pbl.innerHTML=`
+            <img src="${m.image_path}" alt="Sophie photo">
+            <div class="photo-overlay">
+              <div class="photo-cap">${capText}</div>
+              <span class="bbl-time">${m.timestamp}</span>
+            </div>`;
+        };
+        img.onerror = ()=>{
+          pbl.outerHTML=imgFallback(m.text||'📷 Photo', m.timestamp);
+        };
+        img.src = m.image_path;
       } else if(m.text && !m.audio_data && (m.text.includes('📷')||m.text.includes('🍽')||m.text.includes('🛍')||m.text.includes('🛌')||m.text.includes('✨')||m.text.includes('real photo')||m.text.includes('real pic'))){
         // Caption-only photo bubble (no broken image)
         const icons={'eating':'🍽️','shopping':'🛍️','bedtime':'🛌','daily':'✨'};
@@ -757,6 +806,19 @@ async function renderMsgs(){
 // image fallback helper (called inline)
 function imgFallback(cap,ts){
   return `<div class="emoji-photo"><span class="ep-icon">📷</span><div class="ep-cap">${cap}</div><div class="bbl-time">${ts}</div></div>`;
+}
+
+// ── LIGHTBOX ──
+function openLightbox(url, cap){
+  document.getElementById('lightbox-img').src = url;
+  document.getElementById('lightbox-cap').textContent = cap || '';
+  document.getElementById('lightbox').classList.add('on');
+  document.body.style.overflow = 'hidden';
+}
+function closeLightbox(){
+  document.getElementById('lightbox').classList.remove('on');
+  document.body.style.overflow = '';
+  document.getElementById('lightbox-img').src = '';
 }
 
 // ── TYPING ──
